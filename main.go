@@ -19,7 +19,7 @@ type Config struct {
 	Token      string     `json:"token"`
 }
 
-// Read config file
+// ConfigLoadFromFile read config file
 func ConfigLoadFromFile() (*Config, error) {
 	usr, err := user.Current()
 	if err != nil {

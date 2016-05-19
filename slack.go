@@ -94,6 +94,17 @@ func (g RelayGroup) HasChannel(cID string) bool {
 	return false
 }
 
+func (g RelayGroup) HasUser(uID string) bool {
+	for _, ch := range g {
+		for _, m := range ch.Members {
+			if m == uID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Relay group definition
 type RelayGroups struct {
 	groups []RelayGroup
@@ -125,6 +136,16 @@ func (g *RelayGroups) ChannelCount() int {
 		cc += len(group)
 	}
 	return cc
+}
+
+// User exists?
+func (g *RelayGroups) HasUser(uID string) bool {
+	for _, gr := range g.groups {
+		if gr.HasUser(uID) {
+			return true
+		}
+	}
+	return false
 }
 
 // Determin to relay channels
@@ -244,6 +265,10 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		return
 	}
 
+	if msg.SubType == "file_shared" {
+		return
+	}
+
 	relayTo := b.relayGroups.DeterminRelayChannels(msg.Channel)
 	if relayTo == nil {
 		return
@@ -255,13 +280,18 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		log.Printf("%+v\n", msg)
 		return
 	}
-
+	uname := sender.Profile.RealName
+	if uname == "" {
+		uname = sender.Name
+	}
 	pm := PostMessage{
-		Token:    b.config.Token,
-		Text:     msg.Text,
-		UserName: sender.Profile.RealName,
-		AsUser:   false,
-		IconUrl:  sender.Profile.Image512,
+		Token:       b.config.Token,
+		Text:        msg.Text,
+		UserName:    uname,
+		UnfurlLinks: true,
+		UnfurlMedia: true,
+		AsUser:      false,
+		IconUrl:     sender.Profile.Image512,
 	}
 
 	for _, channel := range relayTo {
@@ -313,32 +343,69 @@ func (b *RelayBot) UploadFile(channels []string, content []byte, file *File) (re
 	return resp, nil
 }
 
+func (b *RelayBot) fetchFileInfo(id string) (f *File, err error) {
+	v := url.Values{
+		"token": {b.config.Token},
+		"file":  {id},
+	}
+	res, err := http.PostForm(FileInfoURL, v)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	var ok SlackOk
+	if err := json.Unmarshal(body, &ok); err != nil {
+		return nil, err
+	}
+	if !ok.Ok {
+		return nil, ok.NewError()
+	}
+	fileInfo := &FileInfo{}
+	if err := json.Unmarshal(body, fileInfo); err != nil {
+		return nil, err
+	}
+
+	return &fileInfo.File, nil
+}
+
 // Handle file shared event
 func (b *RelayBot) handleFileShared(ev *FileShared) {
-	if strings.HasPrefix(ev.File.Name, "botupload-") {
+	if !b.relayGroups.HasUser(ev.UserId) {
 		return
 	}
-	shared := append(ev.File.Channels, ev.File.Groups...)
-	shared = append(shared, ev.File.IMS...)
+
+	file, err := b.fetchFileInfo(ev.FileId)
+	if err != nil {
+		log.Printf("%v\n", err)
+		return
+	}
+
+	if strings.HasPrefix(file.Name, "botupload-") {
+		return
+	}
+
+	shared := append(file.Channels, file.Groups...)
+	shared = append(shared, file.IMS...)
 
 	relayTo := b.relayGroups.DeterminRelayChannelsByChannnels(shared)
 	if relayTo == nil {
 		return
 	}
-	sender := b.SearchUsers(ev.File.User)
+	sender := b.SearchUsers(file.User)
 	if sender == nil {
 		log.Println("User outdated")
-		log.Printf("%+v\n", ev)
+		log.Printf("%+v\n", file)
 		return
 	}
 
-	fileContent, err := b.downloadFile(ev.File.UrlPrivate)
+	fileContent, err := b.downloadFile(file.UrlPrivate)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 
-	resp, err := b.UploadFile(relayTo, fileContent, &ev.File)
+	resp, err := b.UploadFile(relayTo, fileContent, file)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return

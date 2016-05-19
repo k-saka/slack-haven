@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 const (
 	RTMStartURL    = "https://slack.com/api/rtm.start"
 	PostMessageURL = "https://slack.com/api/chat.postMessage"
 	UploadFileURL  = "https://slack.com/api/files.upload"
+	FileInfoURL    = "https://slack.com/api/files.info"
 )
 
 type RTMStartResponse struct {
@@ -131,7 +133,15 @@ type PostMessage struct {
 }
 
 type SlackOk struct {
-	Ok bool `json:"ok"`
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
+func (o SlackOk) NewError() error {
+	if o.Error != "" {
+		return errors.New(o.Error)
+	}
+	return errors.New("slack response has something worng")
 }
 
 type File struct {
@@ -174,6 +184,11 @@ type File struct {
 
 type FileShared struct {
 	EventType
-	File    File   `json:"file"`
+	FileId  string `json:"file_id"`
+	UserId  string `json:"user_id"`
 	EventTs string `json:"event_ts"`
+}
+
+type FileInfo struct {
+	File File `json:"file"`
 }

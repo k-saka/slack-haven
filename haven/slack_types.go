@@ -1,4 +1,4 @@
-package main
+package haven
 
 import (
 	"encoding/json"
@@ -110,26 +110,57 @@ type Hello struct {
 
 type Message struct {
 	EventType
-	ReplyTo int    `json:"reply_to,omitempty"`
-	Channel string `json:"channel"`
-	User    string `json:"user"`
-	Text    string `json:"text"`
-	Ts      string `json:"ts"`
-	Team    string `json:"team"`
-	SubType string `json:"subtype,omitempty"`
+	ReplyTo     int          `json:"reply_to,omitempty"`
+	Channel     string       `json:"channel"`
+	User        string       `json:"user"`
+	Text        string       `json:"text"`
+	Ts          string       `json:"ts"`
+	Team        string       `json:"team"`
+	SubType     string       `json:"subtype,omitempty"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+type Attachment struct {
+	Fallback    string            `json:"fallback"`
+	IsMsgUnfurl bool              `json:"is_msg_unfurl"`
+	ChannelName string            `json:"channel_name"`
+	IsShare     bool              `json:"is_share"`
+	ChannelId   string            `json:"channel_id"`
+	Color       string            `json:"color"`
+	PreText     string            `json:"pretext"`
+	AuthorName  string            `json:"author_name"`
+	AuthorLink  string            `json:"author_link"`
+	AuthorIcon  string            `json:"author_icon"`
+	Title       string            `json:"title"`
+	TitleLink   string            `json:"title_link"`
+	Text        string            `json:"text"`
+	Fields      []AttachmentField `json:"fields"`
+	ImageUrl    string            `json:"image_url"`
+	ThumbUrl    string            `json:"thumb_url"`
+	Footer      string            `json:"footer"`
+	FooterIcon  string            `json:"footer_icon"`
+	FromUrl     string            `json:"from_url"`
+	//	Ts          string            `json:"ts,omitempty"`
+}
+
+type AttachmentField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
 }
 
 type PostMessage struct {
-	Token       string `json:"token"`
-	Channel     string `json:"channel"`
-	Text        string `json:"text"`
-	LinkNames   int    `json:"link_names,omitempty"`
-	UnfurlLinks bool   `json:"unfurl_links,omitempty"`
-	UnfurlMedia bool   `json:"unfurl_media,omitempty"`
-	UserName    string `json:"username,omitempty"`
-	AsUser      bool   `json:"as_user,omitempty"`
-	IconUrl     string `json:"icon_url,omitempty"`
-	IconEmoji   string `json:"icon_emoji,omitempty"`
+	Token       string       `json:"token"`
+	Channel     string       `json:"channel"`
+	Text        string       `json:"text"`
+	LinkNames   int          `json:"link_names,omitempty"`
+	UnfurlLinks bool         `json:"unfurl_links,omitempty"`
+	UnfurlMedia bool         `json:"unfurl_media,omitempty"`
+	UserName    string       `json:"username,omitempty"`
+	AsUser      bool         `json:"as_user,omitempty"`
+	IconUrl     string       `json:"icon_url,omitempty"`
+	IconEmoji   string       `json:"icon_emoji,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 type SlackOk struct {

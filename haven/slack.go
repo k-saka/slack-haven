@@ -1,4 +1,4 @@
-package main
+package haven
 
 import (
 	"bytes"
@@ -14,41 +14,22 @@ import (
 )
 
 const (
-	// Trying reconnect inverval
+	// ReconnectInterval is try to connect slack rtm api interval
 	ReconnectInterval = time.Second * 10
 )
 
-// RTM API parameter
-type StartAPIParam struct {
-	Token        string `joson:"token"`
-	SimpleLatest bool
-	NoUnread     bool
-	MPIMAware    bool
+// DefaultStartAPIParam is default slack rtm api parameter
+var DefaultStartAPIParam = url.Values{
+	"simple_latest": {"true"},
+	"no_unreads":    {"true"},
+	"mpim_aware":    {"true"},
 }
 
-// Convert to url.Values
-func (p *StartAPIParam) URLValues() url.Values {
-	val := url.Values{"token": {p.Token}}
-	if p.SimpleLatest {
-		val.Set("simple_latest", "true")
-	}
-	if p.NoUnread {
-		val.Set("no_unreads", "true")
-	}
-	if p.MPIMAware {
-		val.Set("mpim_aware", "true")
-	}
-	return val
-}
-
-// Call slack RTM start api
+// StartAPI call slack rtm.start api
 func StartAPI(token string) (resp *RTMStartResponse, err error) {
-	data := StartAPIParam{
-		Token:        token,
-		SimpleLatest: true,
-		NoUnread:     true,
-	}
-	res, err := http.PostForm(RTMStartURL, data.URLValues())
+	param := DefaultStartAPIParam
+	param["token"] = []string{token}
+	res, err := http.PostForm(RTMStartURL, param)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +62,10 @@ func StartAPI(token string) (resp *RTMStartResponse, err error) {
 	return &slackResponse, nil
 }
 
-// Relay group
+// RelayGroup represents relaying channel group
 type RelayGroup []Channel
 
-// Group has channel?
+// HasChannel tests a channel exists in RelayGroup
 func (g RelayGroup) HasChannel(cID string) bool {
 	for _, ch := range g {
 		if ch.Id == cID {
@@ -94,6 +75,7 @@ func (g RelayGroup) HasChannel(cID string) bool {
 	return false
 }
 
+// HasUser tests a user exites in RelayGroup
 func (g RelayGroup) HasUser(uID string) bool {
 	for _, ch := range g {
 		for _, m := range ch.Members {
@@ -105,12 +87,12 @@ func (g RelayGroup) HasUser(uID string) bool {
 	return false
 }
 
-// Relay group definition
+// RelayGroups is slice of RelayGroup
 type RelayGroups struct {
 	groups []RelayGroup
 }
 
-// Create Relay group
+// NewRelayGroups create RelayGroups
 func NewRelayGroups(cfg [][]string, chans []Channel) RelayGroups {
 	groups := make([]RelayGroup, 0, len(cfg))
 	for _, group := range cfg {
@@ -129,7 +111,7 @@ func NewRelayGroups(cfg [][]string, chans []Channel) RelayGroups {
 	return RelayGroups{groups: groups}
 }
 
-// Channel count
+// ChannelCount count up channes in RelayGroups
 func (g *RelayGroups) ChannelCount() int {
 	cc := 0
 	for _, group := range g.groups {
@@ -138,7 +120,7 @@ func (g *RelayGroups) ChannelCount() int {
 	return cc
 }
 
-// User exists?
+// HasUser test RelayGroups having a user
 func (g *RelayGroups) HasUser(uID string) bool {
 	for _, gr := range g.groups {
 		if gr.HasUser(uID) {
@@ -148,7 +130,7 @@ func (g *RelayGroups) HasUser(uID string) bool {
 	return false
 }
 
-// Determin to relay channels
+// DeterminRelayChannels determin channels which is relayed by receive cid
 func (g *RelayGroups) DeterminRelayChannels(cid string) []string {
 	toRelay := make([]string, 0, g.ChannelCount())
 	for _, group := range g.groups {
@@ -168,7 +150,7 @@ func (g *RelayGroups) DeterminRelayChannels(cid string) []string {
 	return toRelay
 }
 
-// Determin to relay channels
+// DeterminRelayChannelsByChannnels determin channels which is relayed by receive cids
 func (g *RelayGroups) DeterminRelayChannelsByChannnels(cids []string) []string {
 	toRelay := map[string]bool{}
 	for _, cid := range cids {
@@ -182,13 +164,26 @@ func (g *RelayGroups) DeterminRelayChannelsByChannnels(cids []string) []string {
 		return nil
 	}
 	toRelayUniq := make([]string, 0, len(toRelay))
-	for k, _ := range toRelay {
+	for k := range toRelay {
 		toRelayUniq = append(toRelayUniq, k)
 	}
+	sort.Strings(cids)
+	sort.Strings(toRelayUniq)
+
+	if len(cids) == len(toRelayUniq) {
+		for i := 0; i < len(cids); i++ {
+			if cids[i] != toRelayUniq[i] {
+				return toRelayUniq
+			}
+		}
+		return nil
+	}
+
 	return toRelayUniq
 }
 
-// Relay bot
+// RelayBot relay multiple channels
+// Relayable events are chat, file and shared message.
 type RelayBot struct {
 	url         string
 	ws          *WsClient
@@ -197,7 +192,7 @@ type RelayBot struct {
 	users       []User
 }
 
-// Create default RealayBot
+// NewRelayBot create RelayBot
 func NewRelayBot(config *Config) *RelayBot {
 	return &RelayBot{
 		config: config,
@@ -205,7 +200,7 @@ func NewRelayBot(config *Config) *RelayBot {
 	}
 }
 
-// Convert to url.Values
+// URLValues return url.Values
 func (p PostMessage) URLValues() url.Values {
 	val := url.Values{
 		"token":      {p.Token},
@@ -231,11 +226,18 @@ func (p PostMessage) URLValues() url.Values {
 	if p.IconEmoji != "" {
 		val.Set("icon_emoji", p.IconEmoji)
 	}
-
+	if p.Attachments != nil && len(p.Attachments) > 0 {
+		at, err := json.Marshal(p.Attachments)
+		if err != nil {
+			log.Printf("%v\n", err)
+		} else {
+			val.Set("attachments", string(at))
+		}
+	}
 	return val
 }
 
-// Post message
+// PostMessage send a message to slack throw chat.postMessage API
 func (b *RelayBot) PostMessage(pm PostMessage) {
 	res, err := http.PostForm(PostMessageURL, pm.URLValues())
 	if err != nil {
@@ -251,7 +253,7 @@ func (b *RelayBot) PostMessage(pm PostMessage) {
 	}
 
 	if !ok.Ok {
-		log.Printf("PostMessage error, %v\n", body)
+		log.Printf("PostMessage error, %s\n", body)
 	}
 }
 
@@ -265,7 +267,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		return
 	}
 
-	if msg.SubType == "file_shared" {
+	if msg.SubType == "file_share" {
 		return
 	}
 
@@ -280,10 +282,12 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		log.Printf("%+v\n", msg)
 		return
 	}
+
 	uname := sender.Profile.RealName
 	if uname == "" {
 		uname = sender.Name
 	}
+
 	pm := PostMessage{
 		Token:       b.config.Token,
 		Text:        msg.Text,
@@ -292,6 +296,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		UnfurlMedia: true,
 		AsUser:      false,
 		IconUrl:     sender.Profile.Image512,
+		Attachments: msg.Attachments,
 	}
 
 	for _, channel := range relayTo {
@@ -315,7 +320,7 @@ func (b *RelayBot) downloadFile(url string) (rc []byte, err error) {
 	return content, nil
 }
 
-// Upload file to slack
+// UploadFile send file to slack
 func (b *RelayBot) UploadFile(channels []string, content []byte, file *File) (resp *http.Response, err error) {
 	body := bytes.Buffer{}
 	writer := multipart.NewWriter(&body)
@@ -451,7 +456,7 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 	}
 }
 
-// Bot loop start
+// Start relay bot
 func (b *RelayBot) Start() {
 	log.Println("relay bot start")
 	b.Connect()
@@ -472,16 +477,16 @@ func (b *RelayBot) Start() {
 	}
 }
 
-// for sort
+// Users represents user list
 type Users []User
 
-// Set users
+// SetUsers set user list under bot controll
 func (b *RelayBot) SetUsers(users []User) {
 	sort.Sort(Users(users))
 	b.users = users
 }
 
-// Search user list
+// SearchUsers search user list which is managed by relay bot for a particular user
 func (b *RelayBot) SearchUsers(uid string) *User {
 	i := sort.Search(len(b.users), func(i int) bool { return b.users[i].Id >= uid })
 	if i < len(b.users) && b.users[i].Id == uid {
@@ -515,17 +520,18 @@ func (b *RelayBot) connect() error {
 	return nil
 }
 
-// Try Connect to slack websocket api until connection establish
+// Connect to slack websocket.
+// Try until connection establish
 func (b *RelayBot) Connect() {
-	if err := b.connect(); err == nil {
-		return
-	} else {
+	if err := b.connect(); err != nil {
 		log.Printf("%v\n", err)
+	} else {
+		return
 	}
 
 	// retry loop
 	t := time.NewTicker(ReconnectInterval)
-	for _ = range t.C {
+	for range t.C {
 		if err := b.connect(); err != nil {
 			log.Printf("%v\n", err)
 			continue

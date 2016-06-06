@@ -1,83 +1,53 @@
 package main
 
 import (
-	"encoding/json"
+	"errors"
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
-	"os/user"
-	"path"
 	"strings"
 	"syscall"
+
+	"github.com/k-saka/slack-haven/haven"
 )
 
-// Bot config
-type Config struct {
-	RelayRooms [][]string `json:"relay-rooms"`
-	Token      string     `json:"token"`
+func parseChannelsArg(arg string) [][]string {
+	groupsArg := strings.Split(arg, ":")
+	groups := make([][]string, len(groupsArg))
+	for i, rooms := range groupsArg {
+		groups[i] = strings.Split(rooms, ",")
+	}
+	return groups
 }
 
-// ConfigLoadFromFile read config file
-func ConfigLoadFromFile() (*Config, error) {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatalf("%v\n", err)
-	}
+func configure(c *haven.Config) error {
+	// Try reading config file
+	_ = haven.ConfigLoadFromFile(c)
 
-	// Trying read config file
-	configPath := path.Join(usr.HomeDir, ".slack-haven")
-	if _, err := os.Stat(configPath); err != nil {
-		return nil, err
-	}
-	buf, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &Config{}
-	if err = json.Unmarshal(buf, config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-func configure() *Config {
-	// Trying read config file
-	config, _ := ConfigLoadFromFile()
-	token := flag.String("token", "", "slack token")
-	channels := flag.String("channel", "", "channels, ex. id1,id2:id3,id4")
+	// Overwrite config with command line options
+	flag.StringVar(&c.Token, "token", c.Token, "slack token")
+	channels := flag.String("channel", "", "To relay channels definition, ex. id1,id2:id3,id4")
 	flag.Parse()
 
-	// Overwrite config with command line option
-	if *token != "" {
-		config.Token = *token
-	}
-
 	if *channels != "" {
-		rawRelayRooms := strings.Split(*channels, ":")
-		relayRooms := make([][]string, len(rawRelayRooms))
-		for index, rooms := range rawRelayRooms {
-			relayRooms[index] = strings.Split(rooms, ",")
-		}
-		config.RelayRooms = relayRooms
+		c.RelayRooms = parseChannelsArg(*channels)
 	}
 
-	if config.Token == "" {
-		log.Fatal("Token is empty")
+	// Validate options
+	if c.Token == "" {
+		return errors.New("Token is empty")
 	}
 
-	for _, room := range config.RelayRooms {
+	for _, room := range c.RelayRooms {
 		if len(room) < 2 {
-			log.Fatal("Invalid room count")
+			return errors.New("Invalid room count")
 		}
 	}
-
-	return config
+	return nil
 }
 
-func signalListenr() {
+func signalListener() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 	s := <-sigChan
@@ -86,9 +56,13 @@ func signalListenr() {
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	config := configure()
+	c := &haven.Config{}
+	err := configure(c)
+	if err != nil {
+		log.Fatalf("%v\n", err)
+	}
 
-	bot := NewRelayBot(config)
+	bot := haven.NewRelayBot(c)
 	go bot.Start()
-	signalListenr()
+	signalListener()
 }

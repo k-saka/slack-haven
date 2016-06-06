@@ -1,23 +1,24 @@
-package main
+package haven
 
 import (
-	"github.com/gorilla/websocket"
 	"log"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
-	// Slack message max size at RTM API. ref: https://api.slack.com/rtm#limits
-	MsgBufSize = 1024 * 16
+	// ReadLimit is max size of received RTM API message. ref: https://api.slack.com/rtm#limits
+	ReadLimit = 16 * 1024
 
-	// WsClient message channel buffer size
+	// MsgChanBufSize is WsClient's message channel size
 	MsgChanBufSize = 100
 
-	// Client read time out
+	// ReadTimeout is WsClient's read timeout value
 	ReadTimeout = time.Second * 65
 )
 
-// Slack RTM API client
+// WsClient is websocket client
 type WsClient struct {
 	conn       *websocket.Conn
 	receive    chan []byte
@@ -26,7 +27,7 @@ type WsClient struct {
 	Disconnect <-chan error
 }
 
-// Create a WsClient
+// NewWsCleint create new WsClient
 func NewWsCleint() *WsClient {
 	receive := make(chan []byte, MsgChanBufSize)
 	disconnect := make(chan error)
@@ -38,19 +39,20 @@ func NewWsCleint() *WsClient {
 	}
 }
 
-// Connect slack websocket api and start read loop
+// Connect to slack websocket api and start read loop
 func (c *WsClient) Connect(url string) error {
 	dialer := websocket.DefaultDialer
 	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		return err
 	}
+	conn.SetReadLimit(ReadLimit)
 	c.conn = conn
 	go c.readLoop()
 	return nil
 }
 
-// Close connection
+// Close websocket connection
 func (c *WsClient) Close() {
 	err := c.conn.Close()
 	c.conn = nil
@@ -59,7 +61,6 @@ func (c *WsClient) Close() {
 	}
 }
 
-// Read message loop
 func (c *WsClient) readLoop() {
 	for {
 		err := c.conn.SetReadDeadline(time.Now().Add(ReadTimeout))

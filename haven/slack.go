@@ -22,7 +22,6 @@ const (
 var DefaultStartAPIParam = url.Values{
 	"simple_latest": {"true"},
 	"no_unreads":    {"true"},
-	"mpim_aware":    {"true"},
 }
 
 // StartAPI call slack rtm.start api

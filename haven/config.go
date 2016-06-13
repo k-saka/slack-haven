@@ -11,6 +11,11 @@ import (
 
 // Config relay channels
 type Config struct {
+	RelayRooms []map[string]bool
+	Token      string
+}
+
+type configJSON struct {
 	RelayRooms [][]string `json:"relay-rooms"`
 	Token      string     `json:"token"`
 }
@@ -33,8 +38,19 @@ func ConfigLoadFromFile(c *Config) error {
 		return err
 	}
 
-	if err = json.Unmarshal(buf, c); err != nil {
+	jsonConf := configJSON{}
+
+	if err = json.Unmarshal(buf, &jsonConf); err != nil {
 		return err
+	}
+	c.Token = jsonConf.Token
+	c.RelayRooms = make([]map[string]bool, len(jsonConf.RelayRooms))
+
+	for i, r := range jsonConf.RelayRooms {
+		c.RelayRooms[i] = map[string]bool{}
+		for _, ch := range r {
+			c.RelayRooms[i][ch] = true
+		}
 	}
 
 	return nil

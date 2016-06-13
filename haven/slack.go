@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -62,16 +63,12 @@ func StartAPI(token string) (resp *RTMStartResponse, err error) {
 }
 
 // RelayGroup represents relaying channel group
-type RelayGroup []Channel
+type RelayGroup map[string]Channel
 
 // HasChannel tests a channel exists in RelayGroup
 func (g RelayGroup) HasChannel(cID string) bool {
-	for _, ch := range g {
-		if ch.Id == cID {
-			return true
-		}
-	}
-	return false
+	_, ok := g[cID]
+	return ok
 }
 
 // HasUser tests a user exites in RelayGroup
@@ -86,42 +83,42 @@ func (g RelayGroup) HasUser(uID string) bool {
 	return false
 }
 
-// RelayGroups is slice of RelayGroup
-type RelayGroups struct {
-	groups []RelayGroup
+//NewRelayGroup create RelayGroup
+func NewRelayGroup(cfg map[string]bool, chans []Channel) RelayGroup {
+	g := RelayGroup{}
+	for _, channel := range chans {
+		if _, ok := cfg[channel.Id]; !ok {
+			continue
+		}
+		g[channel.Id] = channel
+	}
+	return g
 }
 
+// RelayGroups is slice of RelayGroup
+type RelayGroups []RelayGroup
+
 // NewRelayGroups create RelayGroups
-func NewRelayGroups(cfg [][]string, chans []Channel) RelayGroups {
-	groups := make([]RelayGroup, 0, len(cfg))
-	for _, group := range cfg {
-		relayGroup := make([]Channel, 0, len(group))
-		for _, channelID := range group {
-			for _, channel := range chans {
-				if channel.Id != channelID {
-					continue
-				}
-				relayGroup = append(relayGroup, channel)
-				break
-			}
-		}
-		groups = append(groups, relayGroup)
+func NewRelayGroups(cfg []map[string]bool, channels []Channel) RelayGroups {
+	groups := make(RelayGroups, 0, len(cfg))
+	for _, cfgGroup := range cfg {
+		groups = append(groups, NewRelayGroup(cfgGroup, channels))
 	}
-	return RelayGroups{groups: groups}
+	return groups
 }
 
 // ChannelCount count up channes in RelayGroups
-func (g *RelayGroups) ChannelCount() int {
+func (g RelayGroups) ChannelCount() int {
 	cc := 0
-	for _, group := range g.groups {
-		cc += len(group)
+	for _, gr := range g {
+		cc += len(gr)
 	}
 	return cc
 }
 
 // HasUser test RelayGroups having a user
-func (g *RelayGroups) HasUser(uID string) bool {
-	for _, gr := range g.groups {
+func (g RelayGroups) HasUser(uID string) bool {
+	for _, gr := range g {
 		if gr.HasUser(uID) {
 			return true
 		}
@@ -130,13 +127,14 @@ func (g *RelayGroups) HasUser(uID string) bool {
 }
 
 // DeterminRelayChannels determin channels which is relayed by receive cid
-func (g *RelayGroups) DeterminRelayChannels(cid string) []string {
+func (g RelayGroups) DeterminRelayChannels(cid string) []string {
 	toRelay := make([]string, 0, g.ChannelCount())
-	for _, group := range g.groups {
-		if !group.HasChannel(cid) {
+	for _, gr := range g {
+		// skip group don't have the cid
+		if !gr.HasChannel(cid) {
 			continue
 		}
-		for _, ch := range group {
+		for _, ch := range gr {
 			if ch.Id == cid {
 				continue
 			}
@@ -150,7 +148,7 @@ func (g *RelayGroups) DeterminRelayChannels(cid string) []string {
 }
 
 // DeterminRelayChannelsByChannnels determin channels which is relayed by receive cids
-func (g *RelayGroups) DeterminRelayChannelsByChannnels(cids []string) []string {
+func (g RelayGroups) DeterminRelayChannelsByChannnels(cids []string) []string {
 	toRelay := map[string]bool{}
 	for _, cid := range cids {
 		if chs := g.DeterminRelayChannels(cid); chs != nil {
@@ -162,22 +160,21 @@ func (g *RelayGroups) DeterminRelayChannelsByChannnels(cids []string) []string {
 	if len(toRelay) < 1 {
 		return nil
 	}
-	toRelayUniq := make([]string, 0, len(toRelay))
-	for k := range toRelay {
-		toRelayUniq = append(toRelayUniq, k)
-	}
-	sort.Strings(cids)
-	sort.Strings(toRelayUniq)
 
-	if len(cids) == len(toRelayUniq) {
-		for i := 0; i < len(cids); i++ {
-			if cids[i] != toRelayUniq[i] {
-				return toRelayUniq
-			}
+	if len(cids) == len(toRelay) {
+		orig := make(map[string]bool, len(cids))
+		for _, c := range cids {
+			orig[c] = true
 		}
-		return nil
+		if reflect.DeepEqual(orig, toRelay) {
+			return nil
+		}
 	}
 
+	toRelayUniq := []string{}
+	for c := range toRelay {
+		toRelayUniq = append(toRelayUniq, c)
+	}
 	return toRelayUniq
 }
 

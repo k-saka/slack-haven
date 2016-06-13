@@ -9,7 +9,7 @@ var ch1 = Channel{Id: "1", Members: []string{"A", "B", "C"}}
 var ch2 = Channel{Id: "2", Members: []string{"A", "D", "E"}}
 
 func TestRelayGroup(t *testing.T) {
-	r := RelayGroup{ch1, ch2}
+	r := RelayGroup{ch1.Id: ch1, ch2.Id: ch2}
 	if !r.HasChannel("1") {
 		t.Error("Channel 1 not found")
 	}
@@ -28,7 +28,7 @@ func TestRelayGroup(t *testing.T) {
 }
 
 func TestRelayGroups(t *testing.T) {
-	cfg := [][]string{{"1", "2"}}
+	cfg := []map[string]bool{{"1": true, "2": true}}
 	chans := []Channel{ch1, ch2}
 	group := NewRelayGroups(cfg, chans)
 
@@ -48,7 +48,7 @@ func TestRelayGroups(t *testing.T) {
 
 	d = group.DeterminRelayChannelsByChannnels([]string{ch1.Id})
 	if !reflect.DeepEqual(d, []string{ch2.Id}) {
-		t.Errorf("Expected channel id equals %v. Actual: %v", ch2.Id, d)
+		t.Errorf("Expected channel id equals [%v]. Actual: %v", ch2.Id, d)
 	}
 
 	d = group.DeterminRelayChannelsByChannnels([]string{"xxx"})

@@ -12,11 +12,14 @@ import (
 	"github.com/k-saka/slack-haven/haven"
 )
 
-func parseChannelsArg(arg string) [][]string {
+func parseChannelsArg(arg string) []map[string]bool {
 	groupsArg := strings.Split(arg, ":")
-	groups := make([][]string, len(groupsArg))
+	groups := make([]map[string]bool, len(groupsArg))
 	for i, rooms := range groupsArg {
-		groups[i] = strings.Split(rooms, ",")
+		groups[i] = map[string]bool{}
+		for _, cID := range strings.Split(rooms, ",") {
+			groups[i][cID] = true
+		}
 	}
 	return groups
 }

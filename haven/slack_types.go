@@ -53,6 +53,14 @@ type Profile struct {
 	Image512  string `json:"image_512"`
 }
 
+// FullName return realname or default name
+func (p Profile) FullName() string {
+	if p.RealName != "" {
+		return p.RealName
+	}
+	return "名無し@すらっくへいぶん"
+}
+
 type Mpim struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`

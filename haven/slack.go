@@ -3,6 +3,7 @@ package haven
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
@@ -81,6 +82,15 @@ func (g RelayGroup) HasUser(uID string) bool {
 		}
 	}
 	return false
+}
+
+// UserIDs return all user ids under group
+func (g RelayGroup) UserIDs() []string {
+	members := []string{}
+	for _, ch := range g {
+		members = append(members, ch.Members...)
+	}
+	return members
 }
 
 //NewRelayGroup create RelayGroup
@@ -185,7 +195,7 @@ type RelayBot struct {
 	ws          *WsClient
 	config      *Config
 	relayGroups RelayGroups
-	users       []User
+	users       map[string]User
 }
 
 // NewRelayBot create RelayBot
@@ -253,6 +263,48 @@ func (b *RelayBot) PostMessage(pm PostMessage) {
 	}
 }
 
+func (b *RelayBot) postMembersInfo(cID string) {
+	userIds := []string{}
+	for _, g := range b.relayGroups {
+		if g.HasChannel(cID) {
+			userIds = g.UserIDs()
+			break
+		}
+	}
+
+	if len(userIds) < 1 {
+		return
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("```")
+	buf.WriteString("Haven members:\n")
+	for _, uid := range userIds {
+		user, ok := b.users[uid]
+		if !ok {
+			continue
+		}
+
+		buf.WriteString(fmt.Sprintf("Account:%s\t\t Name:%s\n", user.Name, user.Profile.FullName()))
+	}
+	buf.WriteString("```")
+
+	pm := PostMessage{
+		Token:     b.config.Token,
+		Channel:   cID,
+		Text:      buf.String(),
+		LinkNames: 0,
+		UserName:  "Bot",
+	}
+	b.PostMessage(pm)
+}
+
+func (b *RelayBot) handleSystemMessage(msg *Message) {
+	if strings.Contains(strings.ToLower(msg.Text), "members") {
+		b.postMembersInfo(msg.Channel)
+	}
+}
+
 // Handle receive message
 func (b *RelayBot) handleMessage(msg *Message) {
 	if msg.ReplyTo != 0 {
@@ -267,13 +319,18 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		return
 	}
 
+	if strings.HasPrefix(strings.ToLower(msg.Text), "haven") {
+		b.handleSystemMessage(msg)
+		return
+	}
+
 	relayTo := b.relayGroups.DeterminRelayChannels(msg.Channel)
 	if relayTo == nil {
 		return
 	}
 
-	sender := b.SearchUsers(msg.User)
-	if sender == nil {
+	sender, ok := b.users[msg.User]
+	if !ok {
 		log.Println("User outdated")
 		log.Printf("%+v\n", msg)
 		return
@@ -393,8 +450,8 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 	if relayTo == nil {
 		return
 	}
-	sender := b.SearchUsers(file.User)
-	if sender == nil {
+
+	if _, ok := b.users[file.User]; !ok {
 		log.Println("User outdated")
 		log.Printf("%+v\n", file)
 		return
@@ -418,6 +475,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 		log.Printf("%s\n", err)
 		return
 	}
+
 	ok := &SlackOk{}
 	if err := json.Unmarshal(respBody, ok); err != nil {
 		log.Printf("%s\n", err)
@@ -473,29 +531,13 @@ func (b *RelayBot) Start() {
 	}
 }
 
-// Users represents user list
-type Users []User
-
 // SetUsers set user list under bot controll
 func (b *RelayBot) SetUsers(users []User) {
-	sort.Sort(Users(users))
-	b.users = users
-}
-
-// SearchUsers search user list which is managed by relay bot for a particular user
-func (b *RelayBot) SearchUsers(uid string) *User {
-	i := sort.Search(len(b.users), func(i int) bool { return b.users[i].Id >= uid })
-	if i < len(b.users) && b.users[i].Id == uid {
-		return &b.users[i]
+	b.users = make(map[string]User, len(users))
+	for _, u := range users {
+		b.users[u.Id] = u
 	}
-	return nil
 }
-
-func (u Users) Len() int           { return len(u) }
-func (u Users) Less(i, j int) bool { return u[i].Id < u[j].Id }
-func (u Users) Swap(i, j int)      { u[i], u[j] = u[j], u[i] }
-
-var _ sort.Interface = Users(nil)
 
 func (b *RelayBot) connect() error {
 	log.Println("Call start api")

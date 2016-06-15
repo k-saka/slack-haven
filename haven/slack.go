@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 )
 
@@ -276,17 +278,18 @@ func (b *RelayBot) postMembersInfo(cID string) {
 		return
 	}
 
-	var buf bytes.Buffer
+	buf := bytes.Buffer{}
+	tw := tabwriter.NewWriter(&buf, 0, 8, 0, '\t', 0)
 	buf.WriteString("```")
-	buf.WriteString("Haven members:\n")
+	buf.WriteString("Haven members\n")
 	for _, uid := range userIds {
 		user, ok := b.users[uid]
 		if !ok {
 			continue
 		}
-
-		buf.WriteString(fmt.Sprintf("Account:%s\t\t Name:%s\n", user.Name, user.Profile.FullName()))
+		fmt.Fprintf(tw, "Account:%s\tName:%s\n", user.Name, user.Profile.FullName())
 	}
+	tw.Flush()
 	buf.WriteString("```")
 
 	pm := PostMessage{
@@ -294,14 +297,41 @@ func (b *RelayBot) postMembersInfo(cID string) {
 		Channel:   cID,
 		Text:      buf.String(),
 		LinkNames: 0,
-		UserName:  "Bot",
+		UserName:  "Slack haven",
+	}
+	b.PostMessage(pm)
+}
+
+func (b *RelayBot) postBotStatus(cID string) {
+	mem := runtime.MemStats{}
+	runtime.ReadMemStats(&mem)
+	buf := bytes.Buffer{}
+	tw := tabwriter.NewWriter(&buf, 0, 8, 0, '\t', 0)
+	buf.WriteString("```\n")
+	fmt.Fprintf(tw, "Haven status\n")
+	fmt.Fprintf(tw, "Goroutine count\t%v\n", runtime.NumGoroutine())
+	fmt.Fprintf(tw, "Total allock\t%v\n", mem.TotalAlloc)
+	tw.Flush()
+	buf.WriteString("```\n")
+	pm := PostMessage{
+		Token:     b.config.Token,
+		Channel:   cID,
+		Text:      buf.String(),
+		LinkNames: 0,
+		UserName:  "Slack haven",
 	}
 	b.PostMessage(pm)
 }
 
 func (b *RelayBot) handleSystemMessage(msg *Message) {
-	if strings.Contains(strings.ToLower(msg.Text), "members") {
+	text := strings.ToLower(msg.Text)
+	if strings.Contains(text, "members") {
 		b.postMembersInfo(msg.Channel)
+		return
+	}
+	if strings.Contains(text, "status") {
+		b.postBotStatus(msg.Channel)
+		return
 	}
 }
 
@@ -315,7 +345,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		return
 	}
 
-	if msg.SubType == "file_share" {
+	if msg.SubType == "file_share" && strings.Contains(msg.Text, "botupload-") {
 		return
 	}
 

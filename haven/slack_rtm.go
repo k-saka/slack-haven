@@ -1,7 +1,6 @@
 package haven
 
 import (
-	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -57,7 +56,7 @@ func (c *WsClient) Close() {
 	err := c.conn.Close()
 	c.conn = nil
 	if err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 	}
 }
 
@@ -65,7 +64,7 @@ func (c *WsClient) readLoop() {
 	for {
 		err := c.conn.SetReadDeadline(time.Now().Add(ReadTimeout))
 		if err != nil {
-			log.Printf("%v\n", err)
+			logger.Warningf("%v\n", err)
 		}
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {

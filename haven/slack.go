@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/alexcesaro/log"
 )
 
 const (
@@ -26,6 +27,13 @@ const (
 var DefaultStartAPIParam = url.Values{
 	"simple_latest": {"true"},
 	"no_unreads":    {"true"},
+}
+
+var logger log.Logger
+
+// SetLogger set logger used haven package used
+func SetLogger(log log.Logger) {
+	logger = log
 }
 
 // StartAPI call slack rtm.start api
@@ -40,12 +48,12 @@ func StartAPI(token string) (resp *RTMStartResponse, err error) {
 	body, err := ioutil.ReadAll(res.Body)
 	var ok SlackOk
 	if err := json.Unmarshal(body, &ok); err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 		return nil, err
 	}
 
 	if !ok.Ok {
-		log.Println(string(body))
+		logger.Warningf(string(body))
 		return nil, nil
 	}
 
@@ -237,7 +245,7 @@ func (p PostMessage) URLValues() url.Values {
 	if p.Attachments != nil && len(p.Attachments) > 0 {
 		at, err := json.Marshal(p.Attachments)
 		if err != nil {
-			log.Printf("%v\n", err)
+			logger.Warningf("%v\n", err)
 		} else {
 			val.Set("attachments", string(at))
 		}
@@ -249,19 +257,19 @@ func (p PostMessage) URLValues() url.Values {
 func (b *RelayBot) PostMessage(pm PostMessage) {
 	res, err := http.PostForm(PostMessageURL, pm.URLValues())
 	if err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 		return
 	}
 	defer res.Body.Close()
 	body, _ := ioutil.ReadAll(res.Body)
 	var ok SlackOk
 	if err := json.Unmarshal(body, &ok); err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 		return
 	}
 
 	if !ok.Ok {
-		log.Printf("PostMessage error, %s\n", body)
+		logger.Warningf("PostMessage error, %s\n", body)
 	}
 }
 
@@ -361,8 +369,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 
 	sender, ok := b.users[msg.User]
 	if !ok {
-		log.Println("User outdated")
-		log.Printf("%+v\n", msg)
+		logger.Warningf("User outdated. %+v\n", msg)
 		return
 	}
 
@@ -465,7 +472,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 
 	file, err := b.fetchFileInfo(ev.FileId)
 	if err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 		return
 	}
 
@@ -482,38 +489,37 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 	}
 
 	if _, ok := b.users[file.User]; !ok {
-		log.Println("User outdated")
-		log.Printf("%+v\n", file)
+		logger.Warningf("User outdated. %+v\n", file)
 		return
 	}
 
 	fileContent, err := b.downloadFile(file.UrlPrivate)
 	if err != nil {
-		log.Printf("%s\n", err)
+		logger.Warningf("%s\n", err)
 		return
 	}
 
 	resp, err := b.UploadFile(relayTo, fileContent, file)
 	if err != nil {
-		log.Printf("%s\n", err)
+		logger.Warningf("%s\n", err)
 		return
 	}
 
 	// json check
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("%s\n", err)
+		logger.Warningf("%s\n", err)
 		return
 	}
 
 	ok := &SlackOk{}
 	if err := json.Unmarshal(respBody, ok); err != nil {
-		log.Printf("%s\n", err)
+		logger.Warningf("%s\n", err)
 		return
 	}
 
 	if !ok.Ok {
-		log.Println(string(respBody))
+		logger.Warningf(string(respBody))
 	}
 }
 
@@ -521,18 +527,18 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 func (b *RelayBot) handleEvent(ev *AnyEvent) {
 	switch ev.Type {
 	case "message":
-		log.Println(string(ev.jsonMsg))
+		logger.Debug(string(ev.jsonMsg))
 		var msgEv Message
 		if err := json.Unmarshal(ev.jsonMsg, &msgEv); err != nil {
-			log.Printf("%v\n", err)
+			logger.Warningf("%v\n", err)
 			return
 		}
 		b.handleMessage(&msgEv)
 	case "file_shared":
-		log.Println(string(ev.jsonMsg))
+		logger.Debug(string(ev.jsonMsg))
 		var fileEv FileShared
 		if err := json.Unmarshal(ev.jsonMsg, &fileEv); err != nil {
-			log.Printf("%v\n", err)
+			logger.Warningf("%v\n", err)
 			return
 		}
 		b.handleFileShared(&fileEv)
@@ -542,20 +548,20 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 
 // Start relay bot
 func (b *RelayBot) Start() {
-	log.Println("relay bot start")
+	logger.Info("Relay bot start")
 	b.Connect()
 	for {
 		select {
 		case ev := <-b.ws.Receive:
 			var e AnyEvent
 			if err := json.Unmarshal(ev, &e); err != nil {
-				log.Printf("%v\n", err)
+				logger.Warningf("%v\n", err)
 				continue
 			}
 			e.jsonMsg = json.RawMessage(ev)
 			b.handleEvent(&e)
 		case err := <-b.ws.Disconnect:
-			log.Printf("Disconnected. Cause %v\n", err)
+			logger.Errorf("Disconnected. Cause %v\n", err)
 			b.Connect()
 		}
 	}
@@ -570,7 +576,7 @@ func (b *RelayBot) SetUsers(users []User) {
 }
 
 func (b *RelayBot) connect() error {
-	log.Println("Call start api")
+	logger.Info("Call start api")
 	res, err := StartAPI(b.config.Token)
 	if err != nil {
 		return err
@@ -580,7 +586,7 @@ func (b *RelayBot) connect() error {
 	b.relayGroups = NewRelayGroups(b.config.RelayRooms, all)
 	b.SetUsers(res.Users)
 
-	log.Println("Connect ws")
+	logger.Info("Connect ws")
 	err = b.ws.Connect(b.url)
 	if err != nil {
 		return err
@@ -592,7 +598,7 @@ func (b *RelayBot) connect() error {
 // Try until connection establish
 func (b *RelayBot) Connect() {
 	if err := b.connect(); err != nil {
-		log.Printf("%v\n", err)
+		logger.Warningf("%v\n", err)
 	} else {
 		return
 	}
@@ -601,7 +607,7 @@ func (b *RelayBot) Connect() {
 	t := time.NewTicker(ReconnectInterval)
 	for range t.C {
 		if err := b.connect(); err != nil {
-			log.Printf("%v\n", err)
+			logger.Warningf("%v\n", err)
 			continue
 		}
 		return

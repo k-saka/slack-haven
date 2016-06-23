@@ -3,14 +3,17 @@ package main
 import (
 	"errors"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
+	"github.com/alexcesaro/log"
+	"github.com/alexcesaro/log/stdlog"
 	"github.com/k-saka/slack-haven/haven"
 )
+
+var logger log.Logger
 
 func parseChannelsArg(arg string) []map[string]bool {
 	groupsArg := strings.Split(arg, ":")
@@ -54,15 +57,17 @@ func signalListener() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 	s := <-sigChan
-	log.Printf("Got signal %v", s)
+	logger.Warningf("Got signal %v", s)
 }
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	logger = stdlog.GetFromFlags()
+	haven.SetLogger(logger)
 	c := &haven.Config{}
 	err := configure(c)
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		logger.Errorf("%v\n", err)
+		os.Exit(1)
 	}
 
 	bot := haven.NewRelayBot(c)

@@ -36,27 +36,27 @@ func TestRelayGroups(t *testing.T) {
 		t.Errorf("Expected channel count is 2. Actual: %v", group.ChannelCount())
 	}
 
-	d := group.DeterminRelayChannels(ch1.Id)
+	d := group.DetermineRelayChannels(ch1.Id)
 	if !reflect.DeepEqual(d, []string{ch2.Id}) {
 		t.Errorf("Expected channel id equals %v. Actual: %v", ch2.Id, d)
 	}
 
-	d = group.DeterminRelayChannels("xxx")
+	d = group.DetermineRelayChannels("xxx")
 	if d != nil {
 		t.Errorf("Expected channel id is nil. Actual: %v", d)
 	}
 
-	d = group.DeterminRelayChannelsByChannnels([]string{ch1.Id})
+	d = group.DetermineRelayChannelsByChannels([]string{ch1.Id})
 	if !reflect.DeepEqual(d, []string{ch2.Id}) {
 		t.Errorf("Expected channel id equals [%v]. Actual: %v", ch2.Id, d)
 	}
 
-	d = group.DeterminRelayChannelsByChannnels([]string{"xxx"})
+	d = group.DetermineRelayChannelsByChannels([]string{"xxx"})
 	if d != nil {
 		t.Errorf("Expected channel id is nil. Actual: %v", d)
 	}
 
-	d = group.DeterminRelayChannelsByChannnels([]string{ch1.Id, ch2.Id})
+	d = group.DetermineRelayChannelsByChannels([]string{ch1.Id, ch2.Id})
 	if d != nil {
 		t.Errorf("Expected channel id is nil. Actual: %v", d)
 	}

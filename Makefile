@@ -1,4 +1,4 @@
-.PHONY: help clean fmt build run
+.PHONY: help clean fmt build run test
 
 help:
 	@echo 'clean -- remove binary'
@@ -6,6 +6,7 @@ help:
 	@echo 'vet -- go vet'
 	@echo 'build -- go build'
 	@echo 'run -- execute'
+	@echo 'test -- go test'
 
 clean:
 	go clean
@@ -27,3 +28,7 @@ run:build
 
 install:clean
 	go install github.com/k-saka/slack-haven
+
+test:
+	go test
+	@cd haven; go test

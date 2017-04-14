@@ -56,7 +56,7 @@ func (c *WsClient) Close() {
 	err := c.conn.Close()
 	c.conn = nil
 	if err != nil {
-		logger.Warningf("%v\n", err)
+		logger.Warningf("%v", err)
 	}
 }
 
@@ -64,7 +64,7 @@ func (c *WsClient) readLoop() {
 	for {
 		err := c.conn.SetReadDeadline(time.Now().Add(ReadTimeout))
 		if err != nil {
-			logger.Warningf("%v\n", err)
+			logger.Warningf("%v", err)
 		}
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {

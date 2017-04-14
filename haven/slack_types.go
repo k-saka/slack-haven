@@ -118,7 +118,7 @@ type Hello struct {
 
 type Message struct {
 	EventType
-	ReplyTo     int          `json:"reply_to,omitempty"`
+	ReplyTo     json.Number  `json:"reply_to,omitempty"`
 	Channel     string       `json:"channel"`
 	User        string       `json:"user"`
 	Text        string       `json:"text"`

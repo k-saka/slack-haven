@@ -27,4 +27,6 @@ _testmain.go
 .envrc
 debug
 .vscode
+.idea
+haven.log
 slack-haven

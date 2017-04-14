@@ -66,7 +66,7 @@ func main() {
 	c := &haven.Config{}
 	err := configure(c)
 	if err != nil {
-		logger.Errorf("%v\n", err)
+		logger.Errorf("%v", err)
 		os.Exit(1)
 	}
 

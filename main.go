@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	"fmt"
 	"github.com/alexcesaro/log"
 	"github.com/alexcesaro/log/stdlog"
 	"github.com/k-saka/slack-haven/haven"
@@ -60,7 +61,20 @@ func signalListener() {
 	logger.Warningf("Got signal %v", s)
 }
 
+var version string // version number or build hash
+var showVersion *bool
+
+func init() {
+	showVersion = flag.Bool("version", false, "show version and exit")
+}
+
 func main() {
+	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
+
 	logger = stdlog.GetFromFlags()
 	haven.SetLogger(logger)
 	c := &haven.Config{}

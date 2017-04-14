@@ -1,5 +1,7 @@
 .PHONY: help clean fmt build run test
 
+REVISION := $(shell git rev-parse --verify HEAD)
+
 help:
 	@echo 'clean -- remove binary'
 	@echo 'fmt -- gofmt'
@@ -21,7 +23,7 @@ lint:
 	golint $(wildcard *.go)
 
 build:clean
-	go build -x -v github.com/k-saka/slack-haven
+	go build -x -v -ldflags "-X main.version=$(REVISION)" github.com/k-saka/slack-haven
 
 run:build
 	./slack-haven

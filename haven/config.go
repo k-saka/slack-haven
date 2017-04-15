@@ -11,23 +11,25 @@ import (
 
 // Config relay channels
 type Config struct {
-	RelayRooms []map[string]bool
+	RelayRooms map[string]struct{}
 	Token      string
 }
 
 type configJSON struct {
-	RelayRooms [][]string `json:"relay-rooms"`
-	Token      string     `json:"token"`
+	RelayRooms []string `json:"relay-rooms"`
+	Token      string   `json:"token"`
 }
 
 // ConfigLoadFromFile read config file
 func ConfigLoadFromFile(c *Config) error {
 	home, err := homedir.Dir()
+
 	if err != nil {
 		return err
 	}
 
-	// Trying read config file
+	// Try read config file
+	// TODO pass from command line argument
 	configPath := path.Join(home, ".slack-haven")
 	if _, err := os.Stat(configPath); err != nil {
 		return err
@@ -44,13 +46,10 @@ func ConfigLoadFromFile(c *Config) error {
 		return err
 	}
 	c.Token = jsonConf.Token
-	c.RelayRooms = make([]map[string]bool, len(jsonConf.RelayRooms))
+	c.RelayRooms = make(map[string]struct{}, len(jsonConf.RelayRooms))
 
-	for i, r := range jsonConf.RelayRooms {
-		c.RelayRooms[i] = map[string]bool{}
-		for _, ch := range r {
-			c.RelayRooms[i][ch] = true
-		}
+	for _, r := range jsonConf.RelayRooms {
+		c.RelayRooms[r] = struct{}{}
 	}
 
 	return nil

@@ -14,31 +14,33 @@ import (
 	"github.com/k-saka/slack-haven/haven"
 )
 
-var logger log.Logger
+var version string // version number or build hash
 
-func parseChannelsArg(arg string) []map[string]bool {
-	groupsArg := strings.Split(arg, ":")
-	groups := make([]map[string]bool, len(groupsArg))
-	for i, rooms := range groupsArg {
-		groups[i] = map[string]bool{}
-		for _, cID := range strings.Split(rooms, ",") {
-			groups[i][cID] = true
-		}
+var logger log.Logger // global logger
+
+// Parse channel command line argument
+func parseChannelsArg(arg *string) map[string]struct{} {
+	rooms := strings.Split(*arg, ",")
+	roomConf := make(map[string]struct{}, len(rooms))
+	for _, room := range rooms {
+		roomConf[room] = struct{}{}
 	}
-	return groups
+	return roomConf
 }
 
 func configure(c *haven.Config) error {
 	// Try reading config file
-	_ = haven.ConfigLoadFromFile(c)
+	if err := haven.ConfigLoadFromFile(c); err != nil {
+		return err
+	}
 
 	// Overwrite config with command line options
-	flag.StringVar(&c.Token, "token", c.Token, "slack token")
-	channels := flag.String("channel", "", "To relay channels definition, ex. id1,id2:id3,id4")
-	flag.Parse()
+	if *argToken != "" {
+		c.Token = *argToken
+	}
 
-	if *channels != "" {
-		c.RelayRooms = parseChannelsArg(*channels)
+	if *argChannels != "" {
+		c.RelayRooms = parseChannelsArg(argChannels)
 	}
 
 	// Validate options
@@ -46,11 +48,10 @@ func configure(c *haven.Config) error {
 		return errors.New("Token is empty")
 	}
 
-	for _, room := range c.RelayRooms {
-		if len(room) < 2 {
-			return errors.New("Invalid room count")
-		}
+	if len(c.RelayRooms) < 2 {
+		return errors.New("Invalid room count")
 	}
+
 	return nil
 }
 
@@ -61,15 +62,19 @@ func signalListener() {
 	logger.Warningf("Got signal %v", s)
 }
 
-var version string // version number or build hash
 var showVersion *bool
+var argToken *string
+var argChannels *string
 
 func init() {
 	showVersion = flag.Bool("version", false, "show version and exit")
+	argToken = flag.String("token", "", "slack token")
+	argChannels = flag.String("channel", "", "To relay channels definition, ex. id1,id2")
 }
 
 func main() {
 	flag.Parse()
+
 	if *showVersion {
 		fmt.Println(version)
 		os.Exit(0)

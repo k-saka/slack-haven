@@ -110,6 +110,11 @@ func (g RelayGroup) ChannelCount() int {
 // DetermineRelayChannels determine relay channels
 func (g RelayGroup) DetermineRelayChannels(cid string) []string {
 	toRelay := []string{}
+
+	if !g.HasChannel(cid) {
+		return nil
+	}
+
 	for _, channel := range g {
 		if channel.Id != cid {
 			toRelay = append(toRelay, channel.Id)

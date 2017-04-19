@@ -7,9 +7,6 @@ import (
 )
 
 const (
-	// ReadLimit is max size of received RTM API message. ref: https://api.slack.com/rtm#limits
-	ReadLimit = 16 * 1024
-
 	// MsgChanBufSize is WsClient's message channel size
 	MsgChanBufSize = 100
 
@@ -45,7 +42,6 @@ func (c *WsClient) Connect(url string) error {
 	if err != nil {
 		return err
 	}
-	conn.SetReadLimit(ReadLimit)
 	c.conn = conn
 	go c.readLoop()
 	return nil

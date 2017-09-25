@@ -23,8 +23,8 @@ type WsClient struct {
 	Disconnect <-chan error
 }
 
-// NewWsCleint create new WsClient
-func NewWsCleint() *WsClient {
+// NewWsClient create new WsClient
+func NewWsClient() *WsClient {
 	receive := make(chan []byte, MsgChanBufSize)
 	disconnect := make(chan error)
 	return &WsClient{

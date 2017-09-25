@@ -185,7 +185,7 @@ type RelayBot struct {
 func NewRelayBot(config *Config) *RelayBot {
 	return &RelayBot{
 		config: config,
-		ws:     NewWsCleint(),
+		ws:     NewWsClient(),
 	}
 }
 

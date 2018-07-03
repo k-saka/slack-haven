@@ -251,12 +251,14 @@ func (b *RelayBot) postMembersInfo(cID string) {
 	tw := tabwriter.NewWriter(&buf, 0, 8, 0, '\t', 0)
 	buf.WriteString("```")
 	buf.WriteString("Haven members\n")
-	for uid := range b.relayGroup {
-		user, ok := b.users[uid]
-		if !ok {
-			continue
+	for _, ch := range b.relayGroup {
+		for _, uid := range ch.Members {
+			user, ok := b.users[uid]
+			if !ok {
+				continue
+			}
+			fmt.Fprintf(tw, "Account:%s\tName:%s\n", user.Name, user.Profile.FullName())
 		}
-		fmt.Fprintf(tw, "Account:%s\tName:%s\n", user.Name, user.Profile.FullName())
 	}
 	tw.Flush()
 	buf.WriteString("```")

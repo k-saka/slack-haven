@@ -1,6 +1,7 @@
 package haven
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -11,7 +12,8 @@ const (
 	MsgChanBufSize = 100
 
 	// ReadTimeout is WsClient's read timeout value
-	ReadTimeout = time.Second * 65
+	ReadTimeout  = time.Second * 65
+	pingInterval = time.Second * 60
 )
 
 // WsClient is websocket client
@@ -44,6 +46,7 @@ func (c *WsClient) Connect(url string) error {
 	}
 	c.conn = conn
 	go c.readLoop()
+	go c.pinger()
 	return nil
 }
 
@@ -53,6 +56,28 @@ func (c *WsClient) Close() {
 	c.conn = nil
 	if err != nil {
 		logger.Warningf("%v", err)
+	}
+}
+
+func (c *WsClient) pinger() {
+	var seqNo uint = 1
+	ticker := time.NewTicker(pingInterval)
+	msg := Ping{Type: "ping"}
+	defer ticker.Stop()
+	for {
+		<-ticker.C
+		msg.ID = seqNo
+		jsonBytes, err := json.Marshal(msg)
+		if err != nil {
+			logger.Warningf("ping message error: %v", err)
+			continue
+		}
+		logger.Debug("send ping")
+		if err := c.conn.WriteMessage(websocket.TextMessage, jsonBytes); err != nil {
+			logger.Warningf("ping send error: %v", err)
+			continue
+		}
+		seqNo = seqNo + 1
 	}
 }
 

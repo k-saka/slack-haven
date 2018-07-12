@@ -4,12 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"mime/multipart"
-	"net/http"
-	"net/url"
 	"runtime"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -22,54 +17,11 @@ const (
 	ReconnectInterval = time.Second * 10
 )
 
-// DefaultStartAPIParam is default slack rtm api parameter
-var DefaultStartAPIParam = url.Values{
-	"simple_latest": {"true"},
-	"no_unreads":    {"true"},
-}
-
 var logger log.Logger
 
 // SetLogger set logger used haven package used
 func SetLogger(log log.Logger) {
 	logger = log
-}
-
-// StartAPI call slack rtm.start api
-func StartAPI(token string) (resp *RTMStartResponse, err error) {
-	param := DefaultStartAPIParam
-	param["token"] = []string{token}
-	res, err := http.PostForm(RTMStartURL, param)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	var ok SlackOk
-	if err := json.Unmarshal(body, &ok); err != nil {
-		logger.Warningf("%v", err)
-		return nil, err
-	}
-
-	if !ok.Ok {
-		logger.Warningf(string(body))
-		return nil, nil
-	}
-
-	var slackResponse RTMStartResponse
-	if err = json.Unmarshal(body, &slackResponse); err != nil {
-		return nil, err
-	}
-
-	// sort members
-	for _, c := range slackResponse.Channels {
-		sort.Strings(c.Members)
-	}
-	for _, c := range slackResponse.Groups {
-		sort.Strings(c.Members)
-	}
-
-	return &slackResponse, nil
 }
 
 // RelayGroup represents relaying channel group
@@ -128,7 +80,7 @@ func (g RelayGroup) DetermineRelayChannels(cid string) []string {
 	return toRelay
 }
 
-// DetermineRelayChannels determine relay channels by channel ids
+// DetermineRelayChannelsMulti determine relay channels by channel ids
 func (g RelayGroup) DetermineRelayChannelsMulti(cids []string) []string {
 	fromCids := map[string]struct{}{}
 	for _, cid := range cids {
@@ -177,6 +129,7 @@ type RelayBot struct {
 	url        string
 	ws         *WsClient
 	config     *Config
+	messageLog *messageLog
 	relayGroup RelayGroup
 	users      map[string]User
 }
@@ -184,65 +137,9 @@ type RelayBot struct {
 // NewRelayBot create RelayBot
 func NewRelayBot(config *Config) *RelayBot {
 	return &RelayBot{
-		config: config,
-		ws:     NewWsClient(),
-	}
-}
-
-// URLValues return url.Values
-func (p PostMessage) URLValues() url.Values {
-	val := url.Values{
-		"token":      {p.Token},
-		"channel":    {p.Channel},
-		"text":       {p.Text},
-		"link_names": {string(p.LinkNames)},
-	}
-	if p.UnfurlLinks {
-		val.Set("unfurl_links", "true")
-	}
-	if p.UnfurlMedia {
-		val.Set("unfurl_media", "true")
-	}
-	if p.UserName != "" {
-		val.Set("username", p.UserName)
-	}
-	if p.AsUser {
-		val.Set("as_user", "true")
-	}
-	if p.IconUrl != "" {
-		val.Set("icon_url", p.IconUrl)
-	}
-	if p.IconEmoji != "" {
-		val.Set("icon_emoji", p.IconEmoji)
-	}
-	if p.Attachments != nil && len(p.Attachments) > 0 {
-		at, err := json.Marshal(p.Attachments)
-		if err != nil {
-			logger.Warningf("%v", err)
-		} else {
-			val.Set("attachments", string(at))
-		}
-	}
-	return val
-}
-
-// PostMessage send a message to slack throw chat.postMessage API
-func (b *RelayBot) PostMessage(pm PostMessage) {
-	res, err := http.PostForm(PostMessageURL, pm.URLValues())
-	if err != nil {
-		logger.Warningf("%v", err)
-		return
-	}
-	defer res.Body.Close()
-	body, _ := ioutil.ReadAll(res.Body)
-	var ok SlackOk
-	if err := json.Unmarshal(body, &ok); err != nil {
-		logger.Warningf("%v", err)
-		return
-	}
-
-	if !ok.Ok {
-		logger.Warningf("PostMessage error, %s", body)
+		config:     config,
+		ws:         NewWsClient(),
+		messageLog: newMessageLog(100),
 	}
 }
 
@@ -264,13 +161,15 @@ func (b *RelayBot) postMembersInfo(cID string) {
 	buf.WriteString("```")
 
 	pm := PostMessage{
-		Token:     b.config.Token,
 		Channel:   cID,
 		Text:      buf.String(),
 		LinkNames: 0,
 		UserName:  "Slack haven",
 	}
-	b.PostMessage(pm)
+	_, err := postMessage(b.config.Token, pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+	}
 }
 
 func (b *RelayBot) postBotStatus(cID string) {
@@ -285,13 +184,15 @@ func (b *RelayBot) postBotStatus(cID string) {
 	tw.Flush()
 	buf.WriteString("```\n")
 	pm := PostMessage{
-		Token:     b.config.Token,
 		Channel:   cID,
 		Text:      buf.String(),
 		LinkNames: 0,
 		UserName:  "Slack haven",
 	}
-	b.PostMessage(pm)
+	_, err := postMessage(b.config.Token, pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+	}
 }
 
 func (b *RelayBot) handleSystemMessage(msg *Message) {
@@ -304,6 +205,21 @@ func (b *RelayBot) handleSystemMessage(msg *Message) {
 		b.postBotStatus(msg.Channel)
 		return
 	}
+}
+
+func (b *RelayBot) relayMessage(originID string, pm PostMessage) {
+	resp, err := postMessage(b.config.Token, pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+		return
+	}
+	if !resp.Ok {
+		logger.Warningf("PostMessage error, %s", resp.Error)
+		return
+	}
+	// message log
+	b.messageLog.add(pm.Channel, resp.Ts, originID)
+	logger.Debugf("relayed message %v", pm)
 }
 
 // Handle receive message
@@ -336,6 +252,8 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		logger.Warningf("User outdated. %+v", msg)
 		return
 	}
+	// Add message log as origin
+	b.messageLog.add(msg.Channel, msg.Ts, msg.Ts)
 
 	uname := sender.Profile.RealName
 	if uname == "" {
@@ -343,7 +261,6 @@ func (b *RelayBot) handleMessage(msg *Message) {
 	}
 
 	pm := PostMessage{
-		Token:       b.config.Token,
 		Text:        msg.Text,
 		UserName:    uname,
 		UnfurlLinks: true,
@@ -355,78 +272,8 @@ func (b *RelayBot) handleMessage(msg *Message) {
 
 	for _, channel := range relayTo {
 		pm.Channel = channel
-		b.PostMessage(pm)
-		logger.Infof("relayed message %v", pm)
+		go b.relayMessage(msg.Ts, pm)
 	}
-}
-
-func (b *RelayBot) downloadFile(url string) (rc []byte, err error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer "+b.config.Token)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return content, nil
-}
-
-// UploadFile send file to slack
-func (b *RelayBot) UploadFile(channels []string, content []byte, file *File) (resp *http.Response, err error) {
-	body := bytes.Buffer{}
-	writer := multipart.NewWriter(&body)
-	defer writer.Close()
-
-	part, err := writer.CreateFormFile("file", file.Title)
-	if err != nil {
-		return nil, err
-	}
-
-	part.Write(content)
-	_ = writer.WriteField("token", b.config.Token)
-	_ = writer.WriteField("filetype", file.FileType)
-	_ = writer.WriteField("filename", "botupload-"+file.Name)
-	_ = writer.WriteField("channels", strings.Join(channels, ","))
-
-	req, err := http.NewRequest("POST", UploadFileURL, &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	client := &http.Client{}
-
-	resp, err = client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (b *RelayBot) fetchFileInfo(id string) (f *File, err error) {
-	v := url.Values{
-		"token": {b.config.Token},
-		"file":  {id},
-	}
-	res, err := http.PostForm(FileInfoURL, v)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	var ok SlackOk
-	if err := json.Unmarshal(body, &ok); err != nil {
-		return nil, err
-	}
-	if !ok.Ok {
-		return nil, ok.NewError()
-	}
-	fileInfo := &FileInfo{}
-	if err := json.Unmarshal(body, fileInfo); err != nil {
-		return nil, err
-	}
-
-	return &fileInfo.File, nil
 }
 
 // Handle file shared event
@@ -435,7 +282,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 		return
 	}
 
-	file, err := b.fetchFileInfo(ev.FileId)
+	file, err := fetchFileInfo(b.config.Token, ev.FileId)
 	if err != nil {
 		logger.Warningf("%v", err)
 		return
@@ -460,33 +307,46 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 		return
 	}
 
-	fileContent, err := b.downloadFile(file.UrlPrivate)
+	fileContent, err := downloadFile(b.config.Token, file.UrlPrivate)
 	if err != nil {
 		logger.Warningf("%s", err)
 		return
 	}
 
-	resp, err := b.UploadFile(relayTo, fileContent, file)
+	err = uploadFile(b.config.Token, relayTo, fileContent, file)
 	if err != nil {
 		logger.Warningf("%s", err)
 		return
 	}
+}
 
-	// json check
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Warningf("%s", err)
+func (b *RelayBot) handleReactionAdded(ev *ReactionAdded) {
+	relayTo := b.relayGroup.DetermineRelayChannels(ev.Item.Channel)
+	if relayTo == nil {
 		return
 	}
 
-	ok := &SlackOk{}
-	if err := json.Unmarshal(respBody, ok); err != nil {
-		logger.Warningf("%s", err)
+	// supports only message
+	if ev.Item.Type != "message" {
 		return
 	}
 
-	if !ok.Ok {
-		logger.Warningf(string(respBody))
+	messageMap := b.messageLog.getMessageMap(ev.Item.Channel, ev.Item.Ts)
+	if messageMap == nil {
+		return
+	}
+
+	requestPayload := ReactionAddRequest{Name: ev.Reaction}
+	for _, relayChannelID := range relayTo {
+		if _, ok := messageMap[relayChannelID]; !ok {
+			continue
+		}
+		requestPayload.Channel = relayChannelID
+		requestPayload.Timestamp = messageMap[relayChannelID]
+		_, err := addReaction(b.config.Token, requestPayload)
+		if err != nil {
+			logger.Warningf("cant send reaction: %v", err)
+		}
 	}
 }
 
@@ -509,28 +369,18 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 			return
 		}
 		b.handleFileShared(&fileEv)
-	default:
-	}
-}
-
-// Start relay bot
-func (b *RelayBot) Start() {
-	logger.Info("Relay bot start")
-	b.Connect()
-	for {
-		select {
-		case ev := <-b.ws.Receive:
-			var e AnyEvent
-			if err := json.Unmarshal(ev, &e); err != nil {
-				logger.Warningf("%v", err)
-				continue
-			}
-			e.jsonMsg = json.RawMessage(ev)
-			b.handleEvent(&e)
-		case err := <-b.ws.Disconnect:
-			logger.Errorf("Disconnected. Cause %v", err)
-			b.Connect()
+	case "reaction_added":
+		logger.Debugf("reaction received %v", string(ev.jsonMsg))
+		var reactionAddEv ReactionAdded
+		if err := json.Unmarshal(ev.jsonMsg, &reactionAddEv); err != nil {
+			logger.Warningf("%v", err)
+			return
 		}
+		b.handleReactionAdded(&reactionAddEv)
+	case "pong":
+		logger.Debugf("pong received %v", string(ev.jsonMsg))
+	default:
+		// logger.Debugf("unhandled event %v %v", ev.EventType, string(ev.jsonMsg))
 	}
 }
 
@@ -572,11 +422,35 @@ func (b *RelayBot) Connect() {
 
 	// retry loop
 	t := time.NewTicker(ReconnectInterval)
+	defer t.Stop()
 	for range t.C {
 		if err := b.connect(); err != nil {
 			logger.Warningf("%v", err)
 			continue
 		}
 		return
+	}
+}
+
+// Start relay bot
+func (b *RelayBot) Start() {
+	logger.Info("Relay bot start")
+	b.Connect()
+	defer b.ws.Close()
+
+	for {
+		select {
+		case ev := <-b.ws.Receive:
+			var e AnyEvent
+			if err := json.Unmarshal(ev, &e); err != nil {
+				logger.Warningf("%v", err)
+				continue
+			}
+			e.jsonMsg = json.RawMessage(ev)
+			b.handleEvent(&e)
+		case err := <-b.ws.Disconnect:
+			logger.Errorf("Disconnected. Cause %v", err)
+			b.Connect()
+		}
 	}
 }

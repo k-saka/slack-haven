@@ -5,12 +5,10 @@ import (
 	"errors"
 )
 
-const (
-	RTMStartURL    = "https://slack.com/api/rtm.start"
-	PostMessageURL = "https://slack.com/api/chat.postMessage"
-	UploadFileURL  = "https://slack.com/api/files.upload"
-	FileInfoURL    = "https://slack.com/api/files.info"
-)
+type RTMStartRequest struct {
+	SimpleLatest bool `json:"simple_latest"`
+	NoUnreads    bool `json:"no_unreads"`
+}
 
 type RTMStartResponse struct {
 	Ok       bool      `json:"ok"`
@@ -158,7 +156,6 @@ type AttachmentField struct {
 }
 
 type PostMessage struct {
-	Token       string       `json:"token"`
 	Channel     string       `json:"channel"`
 	Text        string       `json:"text"`
 	LinkNames   int          `json:"link_names,omitempty"`
@@ -169,6 +166,13 @@ type PostMessage struct {
 	IconUrl     string       `json:"icon_url,omitempty"`
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
 	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+type PostMessageResponse struct {
+	Ok      bool   `json:"ok"`
+	Channel string `json:"channel"`
+	Ts      string `json:"ts"`
+	Error   string `json:"error"`
 }
 
 type SlackOk struct {
@@ -228,6 +232,40 @@ type FileShared struct {
 	EventTs string `json:"event_ts"`
 }
 
+type FileInfoRequest struct {
+	File string `json:"file"`
+}
+
 type FileInfo struct {
-	File File `json:"file"`
+	File  File   `json:"file"`
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
+type ReactionAdded struct {
+	Type     string `json:"type"`
+	User     string `json:"user"`
+	Reaction string `json:"reaction"`
+	ItemUser string `json:"item_user"`
+	Item     struct {
+		Type        string `json:"type"`
+		Channel     string `json:"channel"`
+		Ts          string `json:"ts"`
+		File        string `json:"file"`
+		FileComment string `json:"file_comment"`
+	} `json:"item"`
+	EventTs string `json:"event_ts"`
+}
+
+type ReactionAddRequest struct {
+	Name        string `json:"name"`
+	Channel     string `json:"channel"`
+	File        string `json:"file,omitempty"`
+	FileComment string `json:"file_comment,omitempty"`
+	Timestamp   string `json:"timestamp,omitempty"`
+}
+
+type Ping struct {
+	ID   uint   `json:"id"`
+	Type string `json:"type"`
 }

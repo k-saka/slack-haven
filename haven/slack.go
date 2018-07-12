@@ -72,6 +72,48 @@ func StartAPI(token string) (resp *RTMStartResponse, err error) {
 	return &slackResponse, nil
 }
 
+// postMessage send a message to slack throw chat.postMessage API
+func postMessage(pm PostMessage) (*PostMessageResponse, error) {
+	res, err := http.PostForm(PostMessageURL, pm.URLValues())
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, _ := ioutil.ReadAll(res.Body)
+	var response PostMessageResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+// add reaction
+func addReaction(token string, ra ReactionAddRequest) (*SlackOk, error) {
+	jsonBytes, err := json.Marshal(ra)
+	if err != nil {
+		return nil, err
+	}
+	jsonReader := bytes.NewReader(jsonBytes)
+	req, _ := http.NewRequest("POST", ReactionAddURL, jsonReader)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, _ := ioutil.ReadAll(res.Body)
+	response := SlackOk{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+	if !response.Ok {
+		return nil, response.NewError()
+	}
+	return &response, nil
+}
+
 // RelayGroup represents relaying channel group
 type RelayGroup map[string]Channel
 
@@ -128,7 +170,7 @@ func (g RelayGroup) DetermineRelayChannels(cid string) []string {
 	return toRelay
 }
 
-// DetermineRelayChannels determine relay channels by channel ids
+// DetermineRelayChannelsMulti determine relay channels by channel ids
 func (g RelayGroup) DetermineRelayChannelsMulti(cids []string) []string {
 	fromCids := map[string]struct{}{}
 	for _, cid := range cids {
@@ -177,6 +219,7 @@ type RelayBot struct {
 	url        string
 	ws         *WsClient
 	config     *Config
+	messageLog *messageLog
 	relayGroup RelayGroup
 	users      map[string]User
 }
@@ -184,8 +227,9 @@ type RelayBot struct {
 // NewRelayBot create RelayBot
 func NewRelayBot(config *Config) *RelayBot {
 	return &RelayBot{
-		config: config,
-		ws:     NewWsClient(),
+		config:     config,
+		ws:         NewWsClient(),
+		messageLog: newMessageLog(100),
 	}
 }
 
@@ -226,26 +270,6 @@ func (p PostMessage) URLValues() url.Values {
 	return val
 }
 
-// PostMessage send a message to slack throw chat.postMessage API
-func (b *RelayBot) PostMessage(pm PostMessage) {
-	res, err := http.PostForm(PostMessageURL, pm.URLValues())
-	if err != nil {
-		logger.Warningf("%v", err)
-		return
-	}
-	defer res.Body.Close()
-	body, _ := ioutil.ReadAll(res.Body)
-	var ok SlackOk
-	if err := json.Unmarshal(body, &ok); err != nil {
-		logger.Warningf("%v", err)
-		return
-	}
-
-	if !ok.Ok {
-		logger.Warningf("PostMessage error, %s", body)
-	}
-}
-
 func (b *RelayBot) postMembersInfo(cID string) {
 	buf := bytes.Buffer{}
 	tw := tabwriter.NewWriter(&buf, 0, 8, 0, '\t', 0)
@@ -270,7 +294,10 @@ func (b *RelayBot) postMembersInfo(cID string) {
 		LinkNames: 0,
 		UserName:  "Slack haven",
 	}
-	b.PostMessage(pm)
+	_, err := postMessage(pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+	}
 }
 
 func (b *RelayBot) postBotStatus(cID string) {
@@ -291,7 +318,10 @@ func (b *RelayBot) postBotStatus(cID string) {
 		LinkNames: 0,
 		UserName:  "Slack haven",
 	}
-	b.PostMessage(pm)
+	_, err := postMessage(pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+	}
 }
 
 func (b *RelayBot) handleSystemMessage(msg *Message) {
@@ -304,6 +334,21 @@ func (b *RelayBot) handleSystemMessage(msg *Message) {
 		b.postBotStatus(msg.Channel)
 		return
 	}
+}
+
+func (b *RelayBot) relayMessage(originID string, pm PostMessage) {
+	resp, err := postMessage(pm)
+	if err != nil {
+		logger.Warningf("%v", err)
+		return
+	}
+	if !resp.Ok {
+		logger.Warningf("PostMessage error, %s", resp.Error)
+		return
+	}
+	// message log
+	b.messageLog.add(pm.Channel, resp.Ts, originID)
+	logger.Debugf("relayed message %v", pm)
 }
 
 // Handle receive message
@@ -336,6 +381,8 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		logger.Warningf("User outdated. %+v", msg)
 		return
 	}
+	// Add message log as origin
+	b.messageLog.add(msg.Channel, msg.Ts, msg.Ts)
 
 	uname := sender.Profile.RealName
 	if uname == "" {
@@ -355,8 +402,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 
 	for _, channel := range relayTo {
 		pm.Channel = channel
-		b.PostMessage(pm)
-		logger.Infof("relayed message %v", pm)
+		go b.relayMessage(msg.Ts, pm)
 	}
 }
 
@@ -375,8 +421,8 @@ func (b *RelayBot) downloadFile(url string) (rc []byte, err error) {
 	return content, nil
 }
 
-// UploadFile send file to slack
-func (b *RelayBot) UploadFile(channels []string, content []byte, file *File) (resp *http.Response, err error) {
+// uploadFile send file to slack
+func (b *RelayBot) uploadFile(channels []string, content []byte, file *File) (resp *http.Response, err error) {
 	body := bytes.Buffer{}
 	writer := multipart.NewWriter(&body)
 	defer writer.Close()
@@ -466,7 +512,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 		return
 	}
 
-	resp, err := b.UploadFile(relayTo, fileContent, file)
+	resp, err := b.uploadFile(relayTo, fileContent, file)
 	if err != nil {
 		logger.Warningf("%s", err)
 		return
@@ -490,6 +536,36 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 	}
 }
 
+func (b *RelayBot) handleReactionAdded(ev *ReactionAdded) {
+	relayTo := b.relayGroup.DetermineRelayChannels(ev.Item.Channel)
+	if relayTo == nil {
+		return
+	}
+
+	// supports only message
+	if ev.Item.Type != "message" {
+		return
+	}
+
+	messageMap := b.messageLog.getMessageMap(ev.Item.Channel, ev.Item.Ts)
+	if messageMap == nil {
+		return
+	}
+
+	requestPayload := ReactionAddRequest{Name: ev.Reaction}
+	for _, relayChannelID := range relayTo {
+		if _, ok := messageMap[relayChannelID]; !ok {
+			continue
+		}
+		requestPayload.Channel = relayChannelID
+		requestPayload.Timestamp = messageMap[relayChannelID]
+		_, err := addReaction(b.config.Token, requestPayload)
+		if err != nil {
+			logger.Warningf("cant send reaction: %v", err)
+		}
+	}
+}
+
 // Handle receive event
 func (b *RelayBot) handleEvent(ev *AnyEvent) {
 	switch ev.Type {
@@ -509,7 +585,16 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 			return
 		}
 		b.handleFileShared(&fileEv)
+	case "reaction_added":
+		logger.Debugf("reaction received %v", string(ev.jsonMsg))
+		var reactionAddEv ReactionAdded
+		if err := json.Unmarshal(ev.jsonMsg, &reactionAddEv); err != nil {
+			logger.Warningf("%v", err)
+			return
+		}
+		b.handleReactionAdded(&reactionAddEv)
 	default:
+		// logger.Debugf("unhandled event %v %v", ev.EventType, string(ev.jsonMsg))
 	}
 }
 

@@ -10,6 +10,7 @@ const (
 	PostMessageURL = "https://slack.com/api/chat.postMessage"
 	UploadFileURL  = "https://slack.com/api/files.upload"
 	FileInfoURL    = "https://slack.com/api/files.info"
+	ReactionAddURL = "https://slack.com/api/reactions.add"
 )
 
 type RTMStartResponse struct {
@@ -171,6 +172,13 @@ type PostMessage struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
+type PostMessageResponse struct {
+	Ok      bool   `json:"ok"`
+	Channel string `json:"channel"`
+	Ts      string `json:"ts"`
+	Error   string `json:"error"`
+}
+
 type SlackOk struct {
 	Ok    bool   `json:"ok"`
 	Error string `json:"error"`
@@ -230,4 +238,27 @@ type FileShared struct {
 
 type FileInfo struct {
 	File File `json:"file"`
+}
+
+type ReactionAdded struct {
+	Type     string `json:"type"`
+	User     string `json:"user"`
+	Reaction string `json:"reaction"`
+	ItemUser string `json:"item_user"`
+	Item     struct {
+		Type        string `json:"type"`
+		Channel     string `json:"channel"`
+		Ts          string `json:"ts"`
+		File        string `json:"file"`
+		FileComment string `json:"file_comment"`
+	} `json:"item"`
+	EventTs string `json:"event_ts"`
+}
+
+type ReactionAddRequest struct {
+	Name        string `json:"name"`
+	Channel     string `json:"channel"`
+	File        string `json:"file,omitempty"`
+	FileComment string `json:"file_comment,omitempty"`
+	Timestamp   string `json:"timestamp,omitempty"`
 }

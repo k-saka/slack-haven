@@ -264,3 +264,8 @@ type ReactionAddRequest struct {
 	FileComment string `json:"file_comment,omitempty"`
 	Timestamp   string `json:"timestamp,omitempty"`
 }
+
+type Ping struct {
+	ID   uint   `json:"id"`
+	Type string `json:"type"`
+}

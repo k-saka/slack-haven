@@ -377,6 +377,8 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 			return
 		}
 		b.handleReactionAdded(&reactionAddEv)
+	case "pong":
+		logger.Debugf("pong received %v", string(ev.jsonMsg))
 	default:
 		// logger.Debugf("unhandled event %v %v", ev.EventType, string(ev.jsonMsg))
 	}

@@ -24,17 +24,17 @@ func SetLogger(log log.Logger) {
 	logger = log
 }
 
-// RelayGroup represents relaying channel group
-type RelayGroup map[string]Channel
+// relayGroup represents relaying channel group
+type relayGroup map[string]channel
 
-// HasChannel tests a channel exists in RelayGroup
-func (g RelayGroup) HasChannel(cID string) bool {
+// hasChannel tests a channel exists in RelayGroup
+func (g relayGroup) hasChannel(cID string) bool {
 	_, ok := g[cID]
 	return ok
 }
 
-// HasUser tests a user exists in RelayGroup
-func (g RelayGroup) HasUser(uID string) bool {
+// hasUser tests a user exists in RelayGroup
+func (g relayGroup) hasUser(uID string) bool {
 	for _, ch := range g {
 		for _, m := range ch.Members {
 			if m == uID {
@@ -45,8 +45,8 @@ func (g RelayGroup) HasUser(uID string) bool {
 	return false
 }
 
-// UserIDs return all user ids under group
-func (g RelayGroup) UserIDs() []string {
+// userIDs return all user ids under group
+func (g relayGroup) userIDs() []string {
 	members := []string{}
 	for _, ch := range g {
 		members = append(members, ch.Members...)
@@ -54,22 +54,22 @@ func (g RelayGroup) UserIDs() []string {
 	return members
 }
 
-// ChannelCount count up channels in RelayGroups
-func (g RelayGroup) ChannelCount() int {
+// channelCount count up channels in RelayGroups
+func (g relayGroup) channelCount() int {
 	return len(g)
 }
 
-// DetermineRelayChannels determine relay channels
-func (g RelayGroup) DetermineRelayChannels(cid string) []string {
+// determineRelayChannels determine relay channels
+func (g relayGroup) determineRelayChannels(cid string) []string {
 	toRelay := []string{}
 
-	if !g.HasChannel(cid) {
+	if !g.hasChannel(cid) {
 		return nil
 	}
 
 	for _, channel := range g {
-		if channel.Id != cid {
-			toRelay = append(toRelay, channel.Id)
+		if channel.ID != cid {
+			toRelay = append(toRelay, channel.ID)
 		}
 	}
 
@@ -80,8 +80,8 @@ func (g RelayGroup) DetermineRelayChannels(cid string) []string {
 	return toRelay
 }
 
-// DetermineRelayChannelsMulti determine relay channels by channel ids
-func (g RelayGroup) DetermineRelayChannelsMulti(cids []string) []string {
+// determineRelayChannelsMulti determine relay channels by channel ids
+func (g relayGroup) determineRelayChannelsMulti(cids []string) []string {
 	fromCids := map[string]struct{}{}
 	for _, cid := range cids {
 		fromCids[cid] = struct{}{}
@@ -89,7 +89,7 @@ func (g RelayGroup) DetermineRelayChannelsMulti(cids []string) []string {
 
 	toRelay := map[string]struct{}{}
 	for _, cid := range cids {
-		if toCids := g.DetermineRelayChannels(cid); toCids != nil {
+		if toCids := g.determineRelayChannels(cid); toCids != nil {
 			for _, toCid := range toCids {
 				//// check already shared channel
 				//if _, ok := fromCids[toCid]; ok {
@@ -112,12 +112,12 @@ func (g RelayGroup) DetermineRelayChannelsMulti(cids []string) []string {
 	return nil
 }
 
-// NewRelayGroup create RelayGroup from config
-func NewRelayGroup(config *Config, channels []Channel) RelayGroup {
-	group := RelayGroup{}
+// newRelayGroup create RelayGroup from config
+func newRelayGroup(config *Config, channels []channel) relayGroup {
+	group := relayGroup{}
 	for _, channel := range channels {
-		if _, ok := config.RelayRooms[channel.Id]; ok {
-			group[channel.Id] = channel
+		if _, ok := config.RelayRooms[channel.ID]; ok {
+			group[channel.ID] = channel
 		}
 	}
 	return group
@@ -130,8 +130,8 @@ type RelayBot struct {
 	ws         *WsClient
 	config     *Config
 	messageLog *messageLog
-	relayGroup RelayGroup
-	users      map[string]User
+	relayGroup relayGroup
+	users      map[string]user
 }
 
 // NewRelayBot create RelayBot
@@ -160,7 +160,7 @@ func (b *RelayBot) postMembersInfo(cID string) {
 	tw.Flush()
 	buf.WriteString("```")
 
-	pm := PostMessage{
+	pm := postMessageRequest{
 		Channel:   cID,
 		Text:      buf.String(),
 		LinkNames: 0,
@@ -183,7 +183,7 @@ func (b *RelayBot) postBotStatus(cID string) {
 	fmt.Fprintf(tw, "Total allock\t%v\n", mem.TotalAlloc)
 	tw.Flush()
 	buf.WriteString("```\n")
-	pm := PostMessage{
+	pm := postMessageRequest{
 		Channel:   cID,
 		Text:      buf.String(),
 		LinkNames: 0,
@@ -195,7 +195,7 @@ func (b *RelayBot) postBotStatus(cID string) {
 	}
 }
 
-func (b *RelayBot) handleSystemMessage(msg *Message) {
+func (b *RelayBot) handleSystemMessage(msg *message) {
 	text := strings.ToLower(msg.Text)
 	if strings.Contains(text, "members") {
 		b.postMembersInfo(msg.Channel)
@@ -207,7 +207,7 @@ func (b *RelayBot) handleSystemMessage(msg *Message) {
 	}
 }
 
-func (b *RelayBot) relayMessage(originID string, pm PostMessage) {
+func (b *RelayBot) relayMessage(originID string, pm postMessageRequest) {
 	resp, err := postMessage(b.config.Token, pm)
 	if err != nil {
 		logger.Warningf("%v", err)
@@ -223,7 +223,7 @@ func (b *RelayBot) relayMessage(originID string, pm PostMessage) {
 }
 
 // Handle receive message
-func (b *RelayBot) handleMessage(msg *Message) {
+func (b *RelayBot) handleMessage(msg *message) {
 	if msg.ReplyTo.String() != "" {
 		return
 	}
@@ -241,7 +241,7 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		return
 	}
 
-	relayTo := b.relayGroup.DetermineRelayChannels(msg.Channel)
+	relayTo := b.relayGroup.determineRelayChannels(msg.Channel)
 	if relayTo == nil {
 		return
 	}
@@ -260,13 +260,13 @@ func (b *RelayBot) handleMessage(msg *Message) {
 		uname = sender.Name
 	}
 
-	pm := PostMessage{
+	pm := postMessageRequest{
 		Text:        msg.Text,
 		UserName:    uname,
 		UnfurlLinks: true,
 		UnfurlMedia: true,
 		AsUser:      false,
-		IconUrl:     sender.Profile.Image512,
+		IconURL:     sender.Profile.Image512,
 		Attachments: msg.Attachments,
 	}
 
@@ -277,12 +277,12 @@ func (b *RelayBot) handleMessage(msg *Message) {
 }
 
 // Handle file shared event
-func (b *RelayBot) handleFileShared(ev *FileShared) {
-	if !b.relayGroup.HasUser(ev.UserId) {
+func (b *RelayBot) handleFileShared(ev *fileShared) {
+	if !b.relayGroup.hasUser(ev.UserID) {
 		return
 	}
 
-	file, err := fetchFileInfo(b.config.Token, ev.FileId)
+	file, err := fetchFileInfo(b.config.Token, ev.FileID)
 	if err != nil {
 		logger.Warningf("%v", err)
 		return
@@ -295,7 +295,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 	shared := append(file.Channels, file.Groups...)
 	shared = append(shared, file.IMS...)
 
-	relayTo := b.relayGroup.DetermineRelayChannelsMulti(shared)
+	relayTo := b.relayGroup.determineRelayChannelsMulti(shared)
 	if relayTo == nil {
 		return
 	}
@@ -307,7 +307,7 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 		return
 	}
 
-	fileContent, err := downloadFile(b.config.Token, file.UrlPrivate)
+	fileContent, err := downloadFile(b.config.Token, file.URLPrivate)
 	if err != nil {
 		logger.Warningf("%s", err)
 		return
@@ -320,8 +320,8 @@ func (b *RelayBot) handleFileShared(ev *FileShared) {
 	}
 }
 
-func (b *RelayBot) handleReactionAdded(ev *ReactionAdded) {
-	relayTo := b.relayGroup.DetermineRelayChannels(ev.Item.Channel)
+func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
+	relayTo := b.relayGroup.determineRelayChannels(ev.Item.Channel)
 	if relayTo == nil {
 		return
 	}
@@ -336,7 +336,7 @@ func (b *RelayBot) handleReactionAdded(ev *ReactionAdded) {
 		return
 	}
 
-	requestPayload := ReactionAddRequest{Name: ev.Reaction}
+	requestPayload := reactionAddRequest{Name: ev.Reaction}
 	for _, relayChannelID := range relayTo {
 		if _, ok := messageMap[relayChannelID]; !ok {
 			continue
@@ -351,11 +351,11 @@ func (b *RelayBot) handleReactionAdded(ev *ReactionAdded) {
 }
 
 // Handle receive event
-func (b *RelayBot) handleEvent(ev *AnyEvent) {
+func (b *RelayBot) handleEvent(ev *anyEvent) {
 	switch ev.Type {
 	case "message":
 		logger.Debugf("message recieved %v", string(ev.jsonMsg))
-		var msgEv Message
+		var msgEv message
 		if err := json.Unmarshal(ev.jsonMsg, &msgEv); err != nil {
 			logger.Warningf("%v", err)
 			return
@@ -363,7 +363,7 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 		b.handleMessage(&msgEv)
 	case "file_shared":
 		logger.Debugf("file recieved %v", string(ev.jsonMsg))
-		var fileEv FileShared
+		var fileEv fileShared
 		if err := json.Unmarshal(ev.jsonMsg, &fileEv); err != nil {
 			logger.Warningf("%v", err)
 			return
@@ -371,7 +371,7 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 		b.handleFileShared(&fileEv)
 	case "reaction_added":
 		logger.Debugf("reaction received %v", string(ev.jsonMsg))
-		var reactionAddEv ReactionAdded
+		var reactionAddEv reactionAdded
 		if err := json.Unmarshal(ev.jsonMsg, &reactionAddEv); err != nil {
 			logger.Warningf("%v", err)
 			return
@@ -384,24 +384,24 @@ func (b *RelayBot) handleEvent(ev *AnyEvent) {
 	}
 }
 
-// SetUsers set user list under bot control
-func (b *RelayBot) SetUsers(users []User) {
-	b.users = make(map[string]User, len(users))
+// setUsers set user list under bot control
+func (b *RelayBot) setUsers(users []user) {
+	b.users = make(map[string]user, len(users))
 	for _, u := range users {
-		b.users[u.Id] = u
+		b.users[u.ID] = u
 	}
 }
 
-func (b *RelayBot) connect() error {
+func (b *RelayBot) _connect() error {
 	logger.Info("Call start api")
-	res, err := StartAPI(b.config.Token)
+	res, err := startAPI(b.config.Token)
 	if err != nil {
 		return err
 	}
-	b.url = res.Url
+	b.url = res.URL
 	all := append(res.Channels, res.Groups...)
-	b.relayGroup = NewRelayGroup(b.config, all)
-	b.SetUsers(res.Users)
+	b.relayGroup = newRelayGroup(b.config, all)
+	b.setUsers(res.Users)
 
 	logger.Info("Connect ws")
 	err = b.ws.Connect(b.url)
@@ -411,10 +411,10 @@ func (b *RelayBot) connect() error {
 	return nil
 }
 
-// Connect to slack websocket.
+// connect to slack websocket.
 // Try until connection establish
-func (b *RelayBot) Connect() {
-	if err := b.connect(); err != nil {
+func (b *RelayBot) connect() {
+	if err := b._connect(); err != nil {
 		logger.Warningf("%v", err)
 	} else {
 		return
@@ -424,7 +424,7 @@ func (b *RelayBot) Connect() {
 	t := time.NewTicker(ReconnectInterval)
 	defer t.Stop()
 	for range t.C {
-		if err := b.connect(); err != nil {
+		if err := b._connect(); err != nil {
 			logger.Warningf("%v", err)
 			continue
 		}
@@ -435,13 +435,13 @@ func (b *RelayBot) Connect() {
 // Start relay bot
 func (b *RelayBot) Start() {
 	logger.Info("Relay bot start")
-	b.Connect()
+	b.connect()
 	defer b.ws.Close()
 
 	for {
 		select {
 		case ev := <-b.ws.Receive:
-			var e AnyEvent
+			var e anyEvent
 			if err := json.Unmarshal(ev, &e); err != nil {
 				logger.Warningf("%v", err)
 				continue
@@ -450,7 +450,7 @@ func (b *RelayBot) Start() {
 			b.handleEvent(&e)
 		case err := <-b.ws.Disconnect:
 			logger.Errorf("Disconnected. Cause %v", err)
-			b.Connect()
+			b.connect()
 		}
 	}
 }

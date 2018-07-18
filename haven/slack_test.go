@@ -5,24 +5,24 @@ import (
 	"testing"
 )
 
-var ch1 = Channel{Id: "1", Members: []string{"A", "B", "C"}}
-var ch2 = Channel{Id: "2", Members: []string{"A", "D", "E"}}
+var ch1 = channel{ID: "1", Members: []string{"A", "B", "C"}}
+var ch2 = channel{ID: "2", Members: []string{"A", "D", "E"}}
 
 func TestRelayGroup(t *testing.T) {
-	r := RelayGroup{ch1.Id: ch1, ch2.Id: ch2}
-	if !r.HasChannel("1") {
+	r := relayGroup{ch1.ID: ch1, ch2.ID: ch2}
+	if !r.hasChannel("1") {
 		t.Error("Channel 1 not found")
 	}
 
-	if r.HasChannel("3") {
+	if r.hasChannel("3") {
 		t.Error("Group don't have channel 3 but found it")
 	}
 
-	if !r.HasUser("A") {
+	if !r.hasUser("A") {
 		t.Error("User A not found")
 	}
 
-	if r.HasUser("X") {
+	if r.hasUser("X") {
 		t.Error("Group don't have user X but found him")
 	}
 }
@@ -30,29 +30,29 @@ func TestRelayGroup(t *testing.T) {
 func TestRelayGroups(t *testing.T) {
 	cfg := Config{RelayRooms: map[string]struct{}{"1": {}, "2": {}}}
 
-	chans := []Channel{ch1, ch2}
-	group := NewRelayGroup(&cfg, chans)
+	chans := []channel{ch1, ch2}
+	group := newRelayGroup(&cfg, chans)
 
-	if group.ChannelCount() != 2 {
-		t.Errorf("Expected channel count is 2. Actual: %v", group.ChannelCount())
+	if group.channelCount() != 2 {
+		t.Errorf("Expected channel count is 2. Actual: %v", group.channelCount())
 	}
 
-	d := group.DetermineRelayChannels(ch1.Id)
-	if !reflect.DeepEqual(d, []string{ch2.Id}) {
-		t.Errorf("Expected channel id equals %v. Actual: %v", ch2.Id, d)
+	d := group.determineRelayChannels(ch1.ID)
+	if !reflect.DeepEqual(d, []string{ch2.ID}) {
+		t.Errorf("Expected channel id equals %v. Actual: %v", ch2.ID, d)
 	}
 
-	d = group.DetermineRelayChannels("xxx")
+	d = group.determineRelayChannels("xxx")
 	if d != nil {
 		t.Errorf("Expected channel id is nil. Actual: %v", d)
 	}
 
-	d = group.DetermineRelayChannelsMulti([]string{ch1.Id})
-	if !reflect.DeepEqual(d, []string{ch2.Id}) {
-		t.Errorf("Expected channel id equals [%v]. Actual: %v", ch2.Id, d)
+	d = group.determineRelayChannelsMulti([]string{ch1.ID})
+	if !reflect.DeepEqual(d, []string{ch2.ID}) {
+		t.Errorf("Expected channel id equals [%v]. Actual: %v", ch2.ID, d)
 	}
 
-	d = group.DetermineRelayChannelsMulti([]string{"xxx"})
+	d = group.determineRelayChannelsMulti([]string{"xxx"})
 	if d != nil {
 		t.Errorf("Expected channel id is nil. Actual: %v", d)
 	}

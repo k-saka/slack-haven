@@ -5,27 +5,27 @@ import (
 	"errors"
 )
 
-type RTMStartRequest struct {
+type rtmStartRequest struct {
 	SimpleLatest bool `json:"simple_latest"`
 	NoUnreads    bool `json:"no_unreads"`
 }
 
-type RTMStartResponse struct {
+type rtmStartResponse struct {
 	Ok       bool      `json:"ok"`
-	Url      string    `json:"url"`
+	URL      string    `json:"url"`
 	Error    string    `json:"error"`
-	Users    []User    `json:"users"`
-	Channels []Channel `json:"channels"`
-	Mpims    []Mpim    `json:"mpims"`
-	Groups   []Channel `json:"groups"`
+	Users    []user    `json:"users"`
+	Channels []channel `json:"channels"`
+	Mpims    []mpim    `json:"mpims"`
+	Groups   []channel `json:"groups"`
 }
 
-type User struct {
-	Id                string  `json:"id"`
+type user struct {
+	ID                string  `json:"id"`
 	Name              string  `json:"name"`
 	Deleted           bool    `json:"deleted"`
 	Color             string  `json:"color"`
-	Profile           Profile `json:"profile"`
+	Profile           profile `json:"profile"`
 	IsAdmin           bool    `json:"is_admin"`
 	IsOwner           bool    `json:"is_owner"`
 	IsPrimaryOwner    bool    `json:"is_primary_owner"`
@@ -36,7 +36,7 @@ type User struct {
 	HasFile           bool    `json:"has_files"`
 }
 
-type Profile struct {
+type profile struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	RealName  string `json:"real_name"`
@@ -52,15 +52,15 @@ type Profile struct {
 }
 
 // FullName return realname or default name
-func (p Profile) FullName() string {
+func (p profile) FullName() string {
 	if p.RealName != "" {
 		return p.RealName
 	}
 	return "名無し@すらっくへいぶん"
 }
 
-type Mpim struct {
-	Id                 string   `json:"id"`
+type mpim struct {
+	ID                 string   `json:"id"`
 	Name               string   `json:"name"`
 	IsMpim             bool     `json:"is_mpim"`
 	IsGroup            bool     `json:"is_group"`
@@ -73,16 +73,8 @@ type Mpim struct {
 	UnreadCountDisplay int      `json:"unread_count_display"`
 }
 
-type Topic struct {
-	Value   string `json:"value"`
-	Creator string `json:"creator"`
-	LastSet int    `json:"last_set"`
-}
-
-type Purpose Topic
-
-type Channel struct {
-	Id         string   `json:"id"`
+type channel struct {
+	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	IsChannel  bool     `json:"is_channel"`
 	IsGroup    bool     `json:"is_group"`
@@ -96,26 +88,24 @@ type Channel struct {
 	LastRead   string   `json:"last_read"`
 	Latest     string   `json:"latest"`
 	Members    []string `json:"members"`
-	Topic      Topic    `json:"topic"`
-	Purpose    Purpose  `json:"purpose"`
 }
 
-type EventType struct {
+type eventType struct {
 	Type string `json:"type"`
 }
 
-type AnyEvent struct {
-	EventType
+type anyEvent struct {
+	eventType
 	Event   interface{}
 	jsonMsg json.RawMessage
 }
 
-type Hello struct {
-	EventType
+type hello struct {
+	eventType
 }
 
-type Message struct {
-	EventType
+type message struct {
+	eventType
 	ReplyTo     json.Number  `json:"reply_to,omitempty"`
 	Channel     string       `json:"channel"`
 	User        string       `json:"user"`
@@ -123,15 +113,15 @@ type Message struct {
 	Ts          string       `json:"ts"`
 	Team        string       `json:"team"`
 	SubType     string       `json:"subtype,omitempty"`
-	Attachments []Attachment `json:"attachments"`
+	Attachments []attachment `json:"attachments"`
 }
 
-type Attachment struct {
+type attachment struct {
 	Fallback    string            `json:"fallback"`
 	IsMsgUnfurl bool              `json:"is_msg_unfurl"`
 	ChannelName string            `json:"channel_name"`
 	IsShare     bool              `json:"is_share"`
-	ChannelId   string            `json:"channel_id"`
+	ChannelID   string            `json:"channel_id"`
 	Color       string            `json:"color"`
 	PreText     string            `json:"pretext"`
 	AuthorName  string            `json:"author_name"`
@@ -140,22 +130,22 @@ type Attachment struct {
 	Title       string            `json:"title"`
 	TitleLink   string            `json:"title_link"`
 	Text        string            `json:"text"`
-	Fields      []AttachmentField `json:"fields"`
-	ImageUrl    string            `json:"image_url"`
-	ThumbUrl    string            `json:"thumb_url"`
+	Fields      []attachmentField `json:"fields"`
+	ImageURL    string            `json:"image_url"`
+	ThumbURL    string            `json:"thumb_url"`
 	Footer      string            `json:"footer"`
 	FooterIcon  string            `json:"footer_icon"`
-	FromUrl     string            `json:"from_url"`
+	FromURL     string            `json:"from_url"`
 	//	Ts          string            `json:"ts,omitempty"`
 }
 
-type AttachmentField struct {
+type attachmentField struct {
 	Title string `json:"title"`
 	Value string `json:"value"`
 	Short bool   `json:"short"`
 }
 
-type PostMessage struct {
+type postMessageRequest struct {
 	Channel     string       `json:"channel"`
 	Text        string       `json:"text"`
 	LinkNames   int          `json:"link_names,omitempty"`
@@ -163,32 +153,32 @@ type PostMessage struct {
 	UnfurlMedia bool         `json:"unfurl_media,omitempty"`
 	UserName    string       `json:"username,omitempty"`
 	AsUser      bool         `json:"as_user,omitempty"`
-	IconUrl     string       `json:"icon_url,omitempty"`
+	IconURL     string       `json:"icon_url,omitempty"`
 	IconEmoji   string       `json:"icon_emoji,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
+	Attachments []attachment `json:"attachments,omitempty"`
 }
 
-type PostMessageResponse struct {
+type postMessageResponse struct {
 	Ok      bool   `json:"ok"`
 	Channel string `json:"channel"`
 	Ts      string `json:"ts"`
 	Error   string `json:"error"`
 }
 
-type SlackOk struct {
+type slackOk struct {
 	Ok    bool   `json:"ok"`
 	Error string `json:"error"`
 }
 
-func (o SlackOk) NewError() error {
+func (o slackOk) NewError() error {
 	if o.Error != "" {
 		return errors.New(o.Error)
 	}
 	return errors.New("slack response has something worng")
 }
 
-type File struct {
-	Id                 string   `json:"id"`
+type slackFile struct {
+	ID                 string   `json:"id"`
 	Created            int      `json:"created"`
 	TimeStamp          int      `json:"timestamp"`
 	Name               string   `json:"name"`                 // "Pasted image at 2016_05_16 09_57 PM.png",
@@ -203,11 +193,11 @@ type File struct {
 	IsExternal         bool     `json:"is_external"`          // false
 	ExternalType       string   `json:"external_type"`        // ""
 	IsPublic           bool     `json:"is_public"`            // false
-	PublicUrlShared    bool     `json:"public_url_shared"`    // false
+	PublicURLShared    bool     `json:"public_url_shared"`    // false
 	DisplayAsBot       bool     `json:"display_as_bot"`       // false
 	UserName           string   `json:"username"`             // ""
-	UrlPrivate         string   `json:"url_private"`          // ""
-	UrlPrivateDownLoad string   `json:"url_private_download"` // ""
+	URLPrivate         string   `json:"url_private"`          // ""
+	URLPrivateDownLoad string   `json:"url_private_download"` // ""
 	Thumb64            string   `json:"thumb_64"`             // ""
 	Thumb80            string   `json:"thumb_80"`             // ""
 	Thumb360           string   `json:"thumb_360"`            // ""
@@ -225,24 +215,20 @@ type File struct {
 	CommentCount       int      `json:"comments_count"`       // 0
 }
 
-type FileShared struct {
-	EventType
-	FileId  string `json:"file_id"`
-	UserId  string `json:"user_id"`
+type fileShared struct {
+	eventType
+	FileID  string `json:"file_id"`
+	UserID  string `json:"user_id"`
 	EventTs string `json:"event_ts"`
 }
 
-type FileInfoRequest struct {
-	File string `json:"file"`
+type fileInfo struct {
+	File  slackFile `json:"file"`
+	Ok    bool      `json:"ok"`
+	Error string    `json:"error"`
 }
 
-type FileInfo struct {
-	File  File   `json:"file"`
-	Ok    bool   `json:"ok"`
-	Error string `json:"error"`
-}
-
-type ReactionAdded struct {
+type reactionAdded struct {
 	Type     string `json:"type"`
 	User     string `json:"user"`
 	Reaction string `json:"reaction"`
@@ -257,7 +243,7 @@ type ReactionAdded struct {
 	EventTs string `json:"event_ts"`
 }
 
-type ReactionAddRequest struct {
+type reactionAddRequest struct {
 	Name        string `json:"name"`
 	Channel     string `json:"channel"`
 	File        string `json:"file,omitempty"`
@@ -265,7 +251,7 @@ type ReactionAddRequest struct {
 	Timestamp   string `json:"timestamp,omitempty"`
 }
 
-type Ping struct {
+type ping struct {
 	ID   uint   `json:"id"`
 	Type string `json:"type"`
 }

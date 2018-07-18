@@ -45,7 +45,7 @@ var TestMessage = `
 `
 
 func TestMessageUnmarshal(t *testing.T) {
-	ev := &Message{}
+	ev := &message{}
 	if err := json.Unmarshal([]byte(TestMessage), ev); err != nil {
 		t.Errorf("Message parsed error. %v\n", err)
 	}

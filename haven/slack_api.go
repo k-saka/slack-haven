@@ -108,8 +108,24 @@ func downloadFile(token, url string) (rc []byte, err error) {
 }
 
 func fetchFileInfo(token, id string) (f *File, err error) {
-	payload := FileInfoRequest{File: id}
-	responseBytes, err := callSlackJSONAPI(fileInfoURL, token, payload)
+	req, err := http.NewRequest("GET", fileInfoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	q := req.URL.Query()
+	q.Add("file", id)
+	req.URL.RawQuery = q.Encode()
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	responseBytes, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
 	slackResponse := FileInfo{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err

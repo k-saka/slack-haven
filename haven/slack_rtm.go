@@ -62,7 +62,7 @@ func (c *WsClient) Close() {
 func (c *WsClient) pinger() {
 	var seqNo uint = 1
 	ticker := time.NewTicker(pingInterval)
-	msg := Ping{Type: "ping"}
+	msg := ping{Type: "ping"}
 	defer ticker.Stop()
 	for {
 		<-ticker.C

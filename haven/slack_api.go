@@ -44,11 +44,11 @@ func callSlackJSONAPI(url string, token string, payload interface{}) ([]byte, er
 	return body, nil
 }
 
-// StartAPI call slack rtm.start api
-func StartAPI(token string) (resp *RTMStartResponse, err error) {
-	payload := RTMStartRequest{SimpleLatest: true, NoUnreads: true}
+// startAPI call slack rtm.start api
+func startAPI(token string) (resp *rtmStartResponse, err error) {
+	payload := rtmStartRequest{SimpleLatest: true, NoUnreads: true}
 	responseBytes, err := callSlackJSONAPI(rtmStartURL, token, payload)
-	slackResponse := RTMStartResponse{}
+	slackResponse := rtmStartResponse{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err
 	}
@@ -67,9 +67,9 @@ func StartAPI(token string) (resp *RTMStartResponse, err error) {
 }
 
 // postMessage send a message to slack throw chat.postMessage API
-func postMessage(token string, pm PostMessage) (*PostMessageResponse, error) {
+func postMessage(token string, pm postMessageRequest) (*postMessageResponse, error) {
 	responseBytes, err := callSlackJSONAPI(postMessageURL, token, pm)
-	slackResponse := PostMessageResponse{}
+	slackResponse := postMessageResponse{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err
 	}
@@ -80,9 +80,9 @@ func postMessage(token string, pm PostMessage) (*PostMessageResponse, error) {
 }
 
 // add reaction
-func addReaction(token string, ra ReactionAddRequest) (*SlackOk, error) {
+func addReaction(token string, ra reactionAddRequest) (*slackOk, error) {
 	responseBytes, err := callSlackJSONAPI(reactionAddURL, token, ra)
-	slackResponse := SlackOk{}
+	slackResponse := slackOk{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func downloadFile(token, url string) (rc []byte, err error) {
 	return content, nil
 }
 
-func fetchFileInfo(token, id string) (f *File, err error) {
+func fetchFileInfo(token, id string) (f *slackFile, err error) {
 	req, err := http.NewRequest("GET", fileInfoURL, nil)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func fetchFileInfo(token, id string) (f *File, err error) {
 	if err != nil {
 		return nil, err
 	}
-	slackResponse := FileInfo{}
+	slackResponse := fileInfo{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func fetchFileInfo(token, id string) (f *File, err error) {
 }
 
 // uploadFile send file to slack
-func uploadFile(token string, channels []string, content []byte, file *File) error {
+func uploadFile(token string, channels []string, content []byte, file *slackFile) error {
 	body := bytes.Buffer{}
 	writer := multipart.NewWriter(&body)
 	defer writer.Close()
@@ -169,7 +169,7 @@ func uploadFile(token string, channels []string, content []byte, file *File) err
 		return err
 	}
 
-	ok := &SlackOk{}
+	ok := &slackOk{}
 	if err := json.Unmarshal(respBody, ok); err != nil {
 		return err
 	}

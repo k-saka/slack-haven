@@ -3,12 +3,12 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	"fmt"
 	"github.com/alexcesaro/log"
 	"github.com/alexcesaro/log/stdlog"
 	"github.com/k-saka/slack-haven/haven"

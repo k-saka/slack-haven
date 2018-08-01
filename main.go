@@ -4,19 +4,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	"github.com/alexcesaro/log"
-	"github.com/alexcesaro/log/stdlog"
+	"github.com/k-saka/lvlogger"
 	"github.com/k-saka/slack-haven/haven"
 )
 
 var version string // version number or build hash
 
-var logger log.Logger // global logger
+var logger *lvlogger.LvLogger // global logger
 
 // Parse channel command line argument
 func parseChannelsArg(arg *string) map[string]struct{} {
@@ -59,17 +59,19 @@ func signalListener() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 	s := <-sigChan
-	logger.Warningf("Got signal %v", s)
+	logger.Warnf("Got signal %v", s)
 }
 
 var showVersion *bool
 var argToken *string
 var argChannels *string
+var argLogLevel *string
 
 func init() {
-	showVersion = flag.Bool("version", false, "show version and exit")
-	argToken = flag.String("token", "", "slack token")
+	showVersion = flag.Bool("version", false, "Show version and exit")
+	argToken = flag.String("token", "", "Slack token")
 	argChannels = flag.String("channel", "", "To relay channels definition, ex. id1,id2")
+	argLogLevel = flag.String("log", "info", "Logging level. debug|info|warn|error|fatal")
 }
 
 func main() {
@@ -80,10 +82,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	logger = stdlog.GetFromFlags()
+	loglevel, err := lvlogger.UnmarshalLogLevel(*argLogLevel)
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+
+	logger = lvlogger.NewLvLogger(os.Stdout, "", log.LstdFlags|log.Lshortfile, loglevel)
 	haven.SetLogger(logger)
 	c := &haven.Config{}
-	err := configure(c)
+	err = configure(c)
 	if err != nil {
 		logger.Errorf("%v", err)
 		os.Exit(1)

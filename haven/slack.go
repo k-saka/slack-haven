@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/alexcesaro/log"
+	"github.com/k-saka/lvlogger"
 )
 
 const (
@@ -17,10 +17,10 @@ const (
 	ReconnectInterval = time.Second * 10
 )
 
-var logger log.Logger
+var logger *lvlogger.LvLogger
 
 // SetLogger set logger used haven package used
-func SetLogger(log log.Logger) {
+func SetLogger(log *lvlogger.LvLogger) {
 	logger = log
 }
 
@@ -168,7 +168,7 @@ func (b *RelayBot) postMembersInfo(cID string) {
 	}
 	_, err := postMessage(b.config.Token, pm)
 	if err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 	}
 }
 
@@ -191,7 +191,7 @@ func (b *RelayBot) postBotStatus(cID string) {
 	}
 	_, err := postMessage(b.config.Token, pm)
 	if err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 	}
 }
 
@@ -210,11 +210,11 @@ func (b *RelayBot) handleSystemMessage(msg *message) {
 func (b *RelayBot) relayMessage(originID string, pm postMessageRequest) {
 	resp, err := postMessage(b.config.Token, pm)
 	if err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 		return
 	}
 	if !resp.Ok {
-		logger.Warningf("PostMessage error, %s", resp.Error)
+		logger.Warnf("PostMessage error, %s", resp.Error)
 		return
 	}
 	// message log
@@ -249,7 +249,7 @@ func (b *RelayBot) handleMessage(msg *message) {
 
 	sender, ok := b.users[msg.User]
 	if !ok {
-		logger.Warningf("User outdated. %+v", msg)
+		logger.Warnf("User outdated. %+v", msg)
 		return
 	}
 	// Add message log as origin
@@ -284,7 +284,7 @@ func (b *RelayBot) handleFileShared(ev *fileShared) {
 
 	file, err := fetchFileInfo(b.config.Token, ev.FileID)
 	if err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 		return
 	}
 
@@ -303,19 +303,19 @@ func (b *RelayBot) handleFileShared(ev *fileShared) {
 	logger.Infof("to handle file %v", *ev)
 
 	if _, ok := b.users[file.User]; !ok {
-		logger.Warningf("User outdated. %+v", file)
+		logger.Warnf("User outdated. %+v", file)
 		return
 	}
 
 	fileContent, err := downloadFile(b.config.Token, file.URLPrivate)
 	if err != nil {
-		logger.Warningf("%s", err)
+		logger.Warnf("%s", err)
 		return
 	}
 
 	err = uploadFile(b.config.Token, relayTo, fileContent, file)
 	if err != nil {
-		logger.Warningf("%s", err)
+		logger.Warnf("%s", err)
 		return
 	}
 }
@@ -345,7 +345,7 @@ func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
 		requestPayload.Timestamp = messageMap[relayChannelID]
 		_, err := addReaction(b.config.Token, requestPayload)
 		if err != nil {
-			logger.Warningf("cant send reaction: %v", err)
+			logger.Warnf("cant send reaction: %v", err)
 		}
 	}
 }
@@ -357,7 +357,7 @@ func (b *RelayBot) handleEvent(ev *anyEvent) {
 		logger.Debugf("message recieved %v", string(ev.jsonMsg))
 		var msgEv message
 		if err := json.Unmarshal(ev.jsonMsg, &msgEv); err != nil {
-			logger.Warningf("%v", err)
+			logger.Warnf("%v", err)
 			return
 		}
 		b.handleMessage(&msgEv)
@@ -365,7 +365,7 @@ func (b *RelayBot) handleEvent(ev *anyEvent) {
 		logger.Debugf("file recieved %v", string(ev.jsonMsg))
 		var fileEv fileShared
 		if err := json.Unmarshal(ev.jsonMsg, &fileEv); err != nil {
-			logger.Warningf("%v", err)
+			logger.Warnf("%v", err)
 			return
 		}
 		b.handleFileShared(&fileEv)
@@ -373,7 +373,7 @@ func (b *RelayBot) handleEvent(ev *anyEvent) {
 		logger.Debugf("reaction received %v", string(ev.jsonMsg))
 		var reactionAddEv reactionAdded
 		if err := json.Unmarshal(ev.jsonMsg, &reactionAddEv); err != nil {
-			logger.Warningf("%v", err)
+			logger.Warnf("%v", err)
 			return
 		}
 		b.handleReactionAdded(&reactionAddEv)
@@ -415,7 +415,7 @@ func (b *RelayBot) _connect() error {
 // Try until connection establish
 func (b *RelayBot) connect() {
 	if err := b._connect(); err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 	} else {
 		return
 	}
@@ -425,7 +425,7 @@ func (b *RelayBot) connect() {
 	defer t.Stop()
 	for range t.C {
 		if err := b._connect(); err != nil {
-			logger.Warningf("%v", err)
+			logger.Warnf("%v", err)
 			continue
 		}
 		return
@@ -443,7 +443,7 @@ func (b *RelayBot) Start() {
 		case ev := <-b.ws.Receive:
 			var e anyEvent
 			if err := json.Unmarshal(ev, &e); err != nil {
-				logger.Warningf("%v", err)
+				logger.Warnf("%v", err)
 				continue
 			}
 			e.jsonMsg = json.RawMessage(ev)

@@ -55,7 +55,7 @@ func (c *WsClient) Close() {
 	err := c.conn.Close()
 	c.conn = nil
 	if err != nil {
-		logger.Warningf("%v", err)
+		logger.Warnf("%v", err)
 	}
 }
 
@@ -69,12 +69,12 @@ func (c *WsClient) pinger() {
 		msg.ID = seqNo
 		jsonBytes, err := json.Marshal(msg)
 		if err != nil {
-			logger.Warningf("ping message error: %v", err)
+			logger.Warnf("ping message error: %v", err)
 			continue
 		}
 		logger.Debug("send ping")
 		if err := c.conn.WriteMessage(websocket.TextMessage, jsonBytes); err != nil {
-			logger.Warningf("ping send error: %v", err)
+			logger.Warnf("ping send error: %v", err)
 			continue
 		}
 		seqNo = seqNo + 1
@@ -85,7 +85,7 @@ func (c *WsClient) readLoop() {
 	for {
 		err := c.conn.SetReadDeadline(time.Now().Add(ReadTimeout))
 		if err != nil {
-			logger.Warningf("%v", err)
+			logger.Warnf("%v", err)
 		}
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {

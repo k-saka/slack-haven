@@ -65,19 +65,21 @@ func (c *WsClient) pinger() {
 	msg := ping{Type: "ping"}
 	defer ticker.Stop()
 	for {
-		<-ticker.C
-		msg.ID = seqNo
-		jsonBytes, err := json.Marshal(msg)
-		if err != nil {
-			logger.Warningf("ping message error: %v", err)
-			continue
+		select {
+		case <-ticker.C:
+			msg.ID = seqNo
+			jsonBytes, err := json.Marshal(msg)
+			if err != nil {
+				logger.Warningf("ping message error: %v", err)
+				continue
+			}
+			logger.Debug("send ping")
+			if err := c.conn.WriteMessage(websocket.TextMessage, jsonBytes); err != nil {
+				logger.Warningf("ping send error: %v", err)
+				continue
+			}
+			seqNo = seqNo + 1
 		}
-		logger.Debug("send ping")
-		if err := c.conn.WriteMessage(websocket.TextMessage, jsonBytes); err != nil {
-			logger.Warningf("ping send error: %v", err)
-			continue
-		}
-		seqNo = seqNo + 1
 	}
 }
 

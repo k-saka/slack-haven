@@ -13,11 +13,17 @@ type rtmStartRequest struct {
 type rtmStartResponse struct {
 	Ok       bool      `json:"ok"`
 	URL      string    `json:"url"`
+	Self     self      `json:"self"`
 	Error    string    `json:"error"`
 	Users    []user    `json:"users"`
 	Channels []channel `json:"channels"`
 	Mpims    []mpim    `json:"mpims"`
 	Groups   []channel `json:"groups"`
+}
+
+type self struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type user struct {

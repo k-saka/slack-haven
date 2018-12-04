@@ -132,6 +132,7 @@ type RelayBot struct {
 	messageLog *messageLog
 	relayGroup relayGroup
 	users      map[string]user
+	hubUser    self
 }
 
 // NewRelayBot create RelayBot
@@ -322,6 +323,11 @@ func (b *RelayBot) handleFileShared(ev *fileShared) {
 
 func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
 	logger.Infof("reaction added: %#v", ev)
+	// skip reaction posted by this bot
+	if ev.User == b.hubUser.ID {
+		return
+	}
+
 	relayTo := b.relayGroup.determineRelayChannels(ev.Item.Channel)
 	if relayTo == nil {
 		return
@@ -403,7 +409,7 @@ func (b *RelayBot) _connect() error {
 	all := append(res.Channels, res.Groups...)
 	b.relayGroup = newRelayGroup(b.config, all)
 	b.setUsers(res.Users)
-
+	b.hubUser = res.Self
 	logger.Info("Connect ws")
 	err = b.ws.Connect(b.url)
 	if err != nil {

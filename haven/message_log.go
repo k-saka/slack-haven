@@ -55,7 +55,7 @@ func (l *messageLog) add(channelID, messageID, originID string) {
 			return
 		}
 	}
-	logger.Info("message log: %#v", l.records)
+	logger.Infof("message log: %#v", l.records)
 }
 
 func (l *messageLog) getMessageMap(channelID, messageID string) map[string]string {

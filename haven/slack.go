@@ -322,7 +322,6 @@ func (b *RelayBot) handleFileShared(ev *fileShared) {
 }
 
 func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
-	logger.Infof("reaction added: %#v", ev)
 	// skip reaction posted by this bot
 	if ev.User == b.hubUser.ID {
 		return

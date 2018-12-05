@@ -179,10 +179,10 @@ type postMessageResponse struct {
 
 type messageChanged struct {
 	eventType
-	Hidden  bool   `json:"hidden"`
-	Channel string `json:"channel"`
-	Ts      string `json:"ts"`
-	message
+	Hidden  bool    `json:"hidden"`
+	Channel string  `json:"channel"`
+	Ts      string  `json:"ts"`
+	Message message `json:"message"`
 }
 
 type slackOk struct {

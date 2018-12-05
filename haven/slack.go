@@ -282,6 +282,13 @@ func (b *RelayBot) handleMessage(msg *message) {
 	}
 }
 
+func (b *RelayBot) handleMessageChanged(ev *messageChanged) {
+	// for debugging
+	if b.relayGroup.hasChannel(ev.Message.Channel) {
+		logger.Infof("under haven message changed: %#v", ev)
+	}
+}
+
 // Handle file shared event
 func (b *RelayBot) handleFileShared(ev *fileShared) {
 	if !b.relayGroup.hasUser(ev.UserID) {
@@ -366,6 +373,16 @@ func (b *RelayBot) handleEvent(ev *anyEvent) {
 	switch ev.Type {
 	case "message":
 		logger.Debugf("message recieved %v", string(ev.jsonMsg))
+		// message changed event
+		if ev.SubType == "message_changed" {
+			var msgChangedEvent messageChanged
+			if err := json.Unmarshal(ev.jsonMsg, &msgChangedEvent); err != nil {
+				logger.Warnf("%v", err)
+				return
+			}
+			b.handleMessageChanged(&msgChangedEvent)
+			return
+		}
 		var msgEv message
 		if err := json.Unmarshal(ev.jsonMsg, &msgEv); err != nil {
 			logger.Warnf("%v", err)

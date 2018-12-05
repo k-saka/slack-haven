@@ -284,8 +284,46 @@ func (b *RelayBot) handleMessage(msg *message) {
 
 func (b *RelayBot) handleMessageChanged(ev *messageChanged) {
 	// for debugging
-	if b.relayGroup.hasChannel(ev.Message.Channel) {
+	if b.relayGroup.hasChannel(ev.Channel) {
 		logger.Infof("under haven message changed: %#v", ev)
+	}
+
+	if ev.Message.ReplyTo.String() != "" {
+		return
+	}
+
+	if ev.Message.SubType == "bot_message" {
+		return
+	}
+
+	relayTo := b.relayGroup.determineRelayChannels(ev.Channel)
+	if relayTo == nil {
+		return
+	}
+
+	messageMap := b.messageLog.getMessageMap(ev.Channel, ev.Message.Ts)
+	if messageMap == nil {
+		return
+	}
+
+	for _, relayChannelID := range relayTo {
+		msgID, ok := messageMap[relayChannelID]
+		if !ok {
+			continue
+		}
+
+		messageUpdateRequest := messageUpdateRequest{
+			Channel: relayChannelID,
+			Text:    ev.Message.Text,
+			Ts:      msgID,
+		}
+		if ev.Message.Attachments != nil {
+			messageUpdateRequest.Attachments = ev.Message.Attachments
+		}
+		_, err := updateMessage(b.config.Token, messageUpdateRequest)
+		if err != nil {
+			logger.Warnf("cant send reaction: %v", err)
+		}
 	}
 }
 
@@ -363,7 +401,7 @@ func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
 		requestPayload.Timestamp = messageMap[relayChannelID]
 		_, err := addReaction(b.config.Token, requestPayload)
 		if err != nil {
-			logger.Warnf("cant send reaction: %v", err)
+			logger.Warnf("cant update message: %v", err)
 		}
 	}
 }

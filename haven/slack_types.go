@@ -185,6 +185,16 @@ type messageChanged struct {
 	Message message `json:"message"`
 }
 
+type messageUpdateRequest struct {
+	Channel     string       `json:"channel"`
+	Text        string       `json:"text"`
+	Ts          string       `json:"ts"`
+	AsUser      bool         `json:"as_user"`
+	Attachments []attachment `json:"attachments,omitempty"`
+	LinkNames   bool         `json:"link_names"`
+	Parse       string       `json:"parse"`
+}
+
 type slackOk struct {
 	Ok    bool   `json:"ok"`
 	Error string `json:"error"`

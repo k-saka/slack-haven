@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	rtmStartURL    = "https://slack.com/api/rtm.start"
-	postMessageURL = "https://slack.com/api/chat.postMessage"
-	uploadFileURL  = "https://slack.com/api/files.upload"
-	fileInfoURL    = "https://slack.com/api/files.info"
-	reactionAddURL = "https://slack.com/api/reactions.add"
+	rtmStartURL      = "https://slack.com/api/rtm.start"
+	postMessageURL   = "https://slack.com/api/chat.postMessage"
+	uploadFileURL    = "https://slack.com/api/files.upload"
+	fileInfoURL      = "https://slack.com/api/files.info"
+	reactionAddURL   = "https://slack.com/api/reactions.add"
+	updateMessageURL = "https://slack.com/api/chat.update"
 )
 
 func callSlackJSONAPI(url string, token string, payload interface{}) ([]byte, error) {
@@ -82,6 +83,19 @@ func postMessage(token string, pm postMessageRequest) (*postMessageResponse, err
 // add reaction
 func addReaction(token string, ra reactionAddRequest) (*slackOk, error) {
 	responseBytes, err := callSlackJSONAPI(reactionAddURL, token, ra)
+	slackResponse := slackOk{}
+	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
+		return nil, err
+	}
+	if !slackResponse.Ok {
+		return nil, errors.New(slackResponse.Error)
+	}
+	return &slackResponse, nil
+}
+
+// update chat message
+func updateMessage(token string, mur messageUpdateRequest) (*slackOk, error) {
+	responseBytes, err := callSlackJSONAPI(updateMessageURL, token, mur)
 	slackResponse := slackOk{}
 	if err = json.Unmarshal(responseBytes, &slackResponse); err != nil {
 		return nil, err

@@ -225,6 +225,11 @@ func (b *RelayBot) relayMessage(originID string, pm postMessageRequest) {
 
 // Handle receive message
 func (b *RelayBot) handleMessage(msg *message) {
+	// for debugging
+	if b.relayGroup.hasChannel(msg.Channel) {
+		logger.Infof("under haven message: %#v", msg)
+	}
+
 	if msg.ReplyTo.String() != "" {
 		return
 	}

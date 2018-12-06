@@ -226,9 +226,9 @@ func (b *RelayBot) relayMessage(originID string, pm postMessageRequest) {
 // Handle receive message
 func (b *RelayBot) handleMessage(msg *message) {
 	// for debugging
-	if b.relayGroup.hasChannel(msg.Channel) {
-		logger.Infof("under haven message: %#v", msg)
-	}
+	//if b.relayGroup.hasChannel(msg.Channel) {
+	//	logger.Infof("under haven message: %#v", msg)
+	//}
 
 	if msg.ReplyTo.String() != "" {
 		return
@@ -284,9 +284,9 @@ func (b *RelayBot) handleMessage(msg *message) {
 
 func (b *RelayBot) handleMessageChanged(ev *messageChanged) {
 	// for debugging
-	if b.relayGroup.hasChannel(ev.Channel) {
-		logger.Infof("under haven message changed: %#v", ev)
-	}
+	//if b.relayGroup.hasChannel(ev.Channel) {
+	//	logger.Infof("under haven message changed: %#v", ev)
+	//}
 
 	if ev.Message.ReplyTo.String() != "" {
 		return

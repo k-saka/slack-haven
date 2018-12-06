@@ -97,7 +97,8 @@ type channel struct {
 }
 
 type eventType struct {
-	Type string `json:"type"`
+	Type    string `json:"type"`
+	SubType string `json:"subtype,omitempty"`
 }
 
 type anyEvent struct {
@@ -112,14 +113,19 @@ type hello struct {
 
 type message struct {
 	eventType
-	ReplyTo     json.Number  `json:"reply_to,omitempty"`
-	Channel     string       `json:"channel"`
-	User        string       `json:"user"`
-	Text        string       `json:"text"`
-	Ts          string       `json:"ts"`
-	Team        string       `json:"team"`
-	SubType     string       `json:"subtype,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	ReplyTo     json.Number   `json:"reply_to,omitempty"`
+	Channel     string        `json:"channel"`
+	User        string        `json:"user"`
+	Text        string        `json:"text"`
+	Ts          string        `json:"ts"`
+	Team        string        `json:"team"`
+	Attachments []attachment  `json:"attachments"`
+	Edited      messageEdited `json:"edited"`
+}
+
+type messageEdited struct {
+	User string `json:"user"`
+	Ts   string `json:"ts"`
 }
 
 type attachment struct {
@@ -169,6 +175,24 @@ type postMessageResponse struct {
 	Channel string `json:"channel"`
 	Ts      string `json:"ts"`
 	Error   string `json:"error"`
+}
+
+type messageChanged struct {
+	eventType
+	Hidden  bool    `json:"hidden"`
+	Channel string  `json:"channel"`
+	Ts      string  `json:"ts"`
+	Message message `json:"message"`
+}
+
+type messageUpdateRequest struct {
+	Channel     string       `json:"channel"`
+	Text        string       `json:"text"`
+	Ts          string       `json:"ts"`
+	AsUser      bool         `json:"as_user"`
+	Attachments []attachment `json:"attachments,omitempty"`
+	LinkNames   bool         `json:"link_names"`
+	Parse       string       `json:"parse"`
 }
 
 type slackOk struct {

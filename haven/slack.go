@@ -225,6 +225,11 @@ func (b *RelayBot) relayMessage(originID string, pm postMessageRequest) {
 
 // Handle receive message
 func (b *RelayBot) handleMessage(msg *message) {
+	// for debugging
+	if b.relayGroup.hasChannel(msg.Channel) {
+		logger.Infof("under haven message: %#v", msg)
+	}
+
 	if msg.ReplyTo.String() != "" {
 		return
 	}
@@ -274,6 +279,51 @@ func (b *RelayBot) handleMessage(msg *message) {
 	for _, channel := range relayTo {
 		pm.Channel = channel
 		go b.relayMessage(msg.Ts, pm)
+	}
+}
+
+func (b *RelayBot) handleMessageChanged(ev *messageChanged) {
+	// for debugging
+	if b.relayGroup.hasChannel(ev.Channel) {
+		logger.Infof("under haven message changed: %#v", ev)
+	}
+
+	if ev.Message.ReplyTo.String() != "" {
+		return
+	}
+
+	if ev.Message.SubType == "bot_message" {
+		return
+	}
+
+	relayTo := b.relayGroup.determineRelayChannels(ev.Channel)
+	if relayTo == nil {
+		return
+	}
+
+	messageMap := b.messageLog.getMessageMap(ev.Channel, ev.Message.Ts)
+	if messageMap == nil {
+		return
+	}
+
+	for _, relayChannelID := range relayTo {
+		msgID, ok := messageMap[relayChannelID]
+		if !ok {
+			continue
+		}
+
+		messageUpdateRequest := messageUpdateRequest{
+			Channel: relayChannelID,
+			Text:    ev.Message.Text,
+			Ts:      msgID,
+		}
+		if ev.Message.Attachments != nil {
+			messageUpdateRequest.Attachments = ev.Message.Attachments
+		}
+		_, err := updateMessage(b.config.Token, messageUpdateRequest)
+		if err != nil {
+			logger.Warnf("cant send reaction: %v", err)
+		}
 	}
 }
 
@@ -351,7 +401,7 @@ func (b *RelayBot) handleReactionAdded(ev *reactionAdded) {
 		requestPayload.Timestamp = messageMap[relayChannelID]
 		_, err := addReaction(b.config.Token, requestPayload)
 		if err != nil {
-			logger.Warnf("cant send reaction: %v", err)
+			logger.Warnf("cant update message: %v", err)
 		}
 	}
 }
@@ -361,6 +411,16 @@ func (b *RelayBot) handleEvent(ev *anyEvent) {
 	switch ev.Type {
 	case "message":
 		logger.Debugf("message recieved %v", string(ev.jsonMsg))
+		// message changed event
+		if ev.SubType == "message_changed" {
+			var msgChangedEvent messageChanged
+			if err := json.Unmarshal(ev.jsonMsg, &msgChangedEvent); err != nil {
+				logger.Warnf("%v", err)
+				return
+			}
+			b.handleMessageChanged(&msgChangedEvent)
+			return
+		}
 		var msgEv message
 		if err := json.Unmarshal(ev.jsonMsg, &msgEv); err != nil {
 			logger.Warnf("%v", err)
